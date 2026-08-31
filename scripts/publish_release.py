@@ -4,11 +4,12 @@ import subprocess
 import httpx
 
 REPO = "gengsha/subcraft"
-TAG = "v0.1.0"
-TITLE = "SubCraft 字幕生成器 v0.1.0"
+TAG = "v0.1.1"
+TITLE = "SubCraft 字幕生成器 v0.1.1"
 
 ASSETS = [
-    os.path.abspath(r"release\SubCraft-0.1.0-win-x64.zip"),
+    os.path.abspath(r"release\SubCraft-0.1.1-win-x64.zip"),
+    os.path.abspath(r"release\SubCraft-0.1.1-portable.exe"),
     os.path.abspath(r"release\linux\SubCraft-0.1.0-x64-linux.tar.gz"),
 ]
 
@@ -31,7 +32,7 @@ def get_github_token() -> str:
         print(f"Warning: Could not get credential from git: {e}")
     return ""
 
-BODY = """# SubCraft v0.1.0
+BODY = """# SubCraft v0.1.1
 
 视频语音识别、AI 多厂商翻译、双语排版与字幕制作工具。
 
@@ -39,10 +40,16 @@ BODY = """# SubCraft v0.1.0
 
 ### 资产下载 (Downloads)
 
-| 平台 | 文件名 | 文件大小 | 说明 |
-|---|---|---|---|
-| **Windows x64** | `SubCraft-0.1.0-win-x64.zip` | ~281 MB | 便携免安装版（内置 Python 独立后端与 ffmpeg 运行时，解压即用） |
-| **Linux x64** | `SubCraft-0.1.0-x64-linux.tar.gz` | ~103 MB | Linux 独立安装包（解压后依赖系统 python3 与 ffmpeg） |
+| 平台 | 文件名 | 说明 |
+|---|---|---|
+| **Windows x64** | `SubCraft-0.1.1-win-x64.zip` | 便携免安装版（内置 Python 独立后端与 ffmpeg 运行时，解压即用） |
+| **Windows x64** | `SubCraft-0.1.1-portable.exe` | 单文件便携运行版 |
+| **Linux x64** | `SubCraft-0.1.0-x64-linux.tar.gz` | Linux 独立安装包（解压后依赖系统 python3 与 ffmpeg） |
+
+#### v0.1.1 更新说明：
+- 修复打包环境下 Whisper 语音识别缺失 `cublas64_12.dll` 导致报错的问题。
+- 增强 CUDA 动态库检索与真实可用性校验，未配置 CUDA 动态库时自动回退并平滑执行 CPU 识别。
+- 识别执行期增加自动容错降级重试机制。
 
 #### Windows 使用提示：
 下载后解压到任意目录，双击运行 `SubCraft.exe` 即可使用。首次使用本地语音识别时，将自动按需下载 Whisper 模型权重。

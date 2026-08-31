@@ -50,7 +50,12 @@ def main() -> None:
         "--hidden-import=app.services.fonts",
     ]
     if not args.no_cuda:
-        opts += ["--collect-all=nvidia"]
+        opts += [
+            "--collect-all=nvidia",
+            "--collect-all=nvidia.cublas",
+            "--collect-all=nvidia.cudnn",
+            "--collect-all=nvidia.cuda_nvrtc",
+        ]
     PyInstaller.__main__.run(opts)
     print(f"\n输出: {ROOT / 'backend' / 'dist' / 'subcraft-backend.exe'}")
 

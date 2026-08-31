@@ -73,3 +73,15 @@ def test_masked_roundtrip_preserves_keys(tmp_path, monkeypatch):
         assert store.get("ai_providers")[0]["api_key"] == "real-key-123"
     finally:
         store._cfg["ai_providers"] = original
+
+
+def test_system_status_and_cuda_check():
+    from backend.app.routers.config import system_status
+    from backend.app.services import asr
+
+    res = system_status()
+    assert "ffmpeg_ready" in res
+    assert "cuda_available" in res
+    assert isinstance(res["cuda_available"], bool)
+    assert res["cuda_available"] == asr.is_cuda_available()
+

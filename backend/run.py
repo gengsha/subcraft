@@ -8,6 +8,9 @@ from pathlib import Path
 # 确保无论工作目录在哪都能 import app 包
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from app.services.asr import _setup_cuda_dlls
+_setup_cuda_dlls()
+
 import uvicorn
 
 

@@ -11,7 +11,7 @@ from .tasks import manager
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="SubCraft Backend", version="0.1.0")
+    app = FastAPI(title="SubCraft Backend", version="0.1.1")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -26,6 +26,9 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def _startup() -> None:
         manager.loop = asyncio.get_running_loop()
+        from .services.asr import _setup_cuda_dlls
+
+        _setup_cuda_dlls()
 
     @app.websocket("/ws")
     async def ws(websocket: WebSocket) -> None:

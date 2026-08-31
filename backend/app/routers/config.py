@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from ..config import store
-from ..services import ffmpeg_tool
+from ..services import asr, ffmpeg_tool
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
@@ -69,14 +69,8 @@ def update_config(body: dict) -> dict:
 @router.get("/system")
 def system_status() -> dict:
     found = ffmpeg_tool.find_ffmpeg()
-    cuda = False
-    try:
-        import ctranslate2
-        cuda = ctranslate2.get_cuda_device_count() > 0
-    except Exception:
-        pass
     return {
         "ffmpeg": found[0] if found else None,
         "ffmpeg_ready": found is not None,
-        "cuda_available": cuda,
+        "cuda_available": asr.is_cuda_available(),
     }
