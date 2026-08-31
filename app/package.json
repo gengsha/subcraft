@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:47654 && cross-env ELECTRON_RENDERER_URL=http://localhost:47654 electron .\"",
     "build": "tsc --noEmit && vite build",
-    "pack": "npm run build && electron-builder --win nsis",
+    "pack": "npm run build && electron-builder --win zip portable nsis",
+    "pack:win": "npm run build && electron-builder --win zip portable",
     "pack:linux": "npm run build && electron-builder --linux --config build.linux.json",
     "preview": "vite preview"
   },
@@ -54,9 +55,28 @@
       }
     ],
     "win": {
-      "target": "nsis",
-      "artifactName": "SubCraft-Setup-${version}.${ext}",
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        },
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "SubCraft-${version}-win-x64.${ext}",
       "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "SubCraft-${version}-portable.exe"
+    },
+    "nsis": {
+      "artifactName": "SubCraft-Setup-${version}.exe"
     }
   }
 }
