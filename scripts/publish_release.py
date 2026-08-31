@@ -6,7 +6,11 @@ import httpx
 REPO = "gengsha/subcraft"
 TAG = "v0.1.0"
 TITLE = "SubCraft 字幕生成器 v0.1.0"
-ZIP_PATH = os.path.abspath(r"release\SubCraft-0.1.0-win-x64.zip")
+
+ASSETS = [
+    os.path.abspath(r"release\SubCraft-0.1.0-win-x64.zip"),
+    os.path.abspath(r"release\linux\SubCraft-0.1.0-x64-linux.tar.gz"),
+]
 
 def get_github_token() -> str:
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
@@ -27,7 +31,7 @@ def get_github_token() -> str:
         print(f"Warning: Could not get credential from git: {e}")
     return ""
 
-BODY = """# SubCraft v0.1.0 (Windows x64)
+BODY = """# SubCraft v0.1.0
 
 视频语音识别、AI 多厂商翻译、双语排版与字幕制作工具。
 
@@ -35,11 +39,27 @@ BODY = """# SubCraft v0.1.0 (Windows x64)
 
 ### 资产下载 (Downloads)
 
-| 文件名 | 文件大小 | 平台 | 说明 |
+| 平台 | 文件名 | 文件大小 | 说明 |
 |---|---|---|---|
-| `SubCraft-0.1.0-win-x64.zip` | ~281 MB | Windows x64 | 便携免安装版（内置 Python 独立后端与 ffmpeg 运行时，解压即用） |
+| **Windows x64** | `SubCraft-0.1.0-win-x64.zip` | ~281 MB | 便携免安装版（内置 Python 独立后端与 ffmpeg 运行时，解压即用） |
+| **Linux x64** | `SubCraft-0.1.0-x64-linux.tar.gz` | ~103 MB | Linux 独立安装包（解压后依赖系统 python3 与 ffmpeg） |
 
-使用提示：下载后解压到任意目录，双击运行 `SubCraft.exe` 即可使用。首次使用本地语音识别时，将自动按需下载 Whisper 模型权重。
+#### Windows 使用提示：
+下载后解压到任意目录，双击运行 `SubCraft.exe` 即可使用。首次使用本地语音识别时，将自动按需下载 Whisper 模型权重。
+
+#### Linux 使用提示：
+```bash
+# 解压
+tar -xzf SubCraft-0.1.0-x64-linux.tar.gz
+cd SubCraft-0.1.0-x64-linux
+
+# 安装系统与后端依赖 (Ubuntu / Debian 示例)
+sudo apt update && sudo apt install -y ffmpeg python3 python3-pip
+python3 -m pip install -r resources/backend/requirements.txt
+
+# 运行客户端
+./subcraft-app
+```
 
 ---
 
@@ -57,38 +77,60 @@ BODY = """# SubCraft v0.1.0 (Windows x64)
   - 独立字幕文件：SRT / ASS 独立及双语合并文件导出。
 """
 
+class ProgressFileReader:
+    def __init__(self, filepath, total_size):
+        self.f = open(filepath, "rb")
+        self.total_size = total_size
+        self.uploaded = 0
+        self.last_reported = 0
+
+    def read(self, size=-1):
+        chunk = self.f.read(size)
+        if chunk:
+            self.uploaded += len(chunk)
+            percent = (self.uploaded / self.total_size) * 100
+            if percent - self.last_reported >= 10 or self.uploaded == self.total_size:
+                self.last_reported = percent
+                print(f"Upload progress: {self.uploaded / (1024*1024):.1f} / {self.total_size / (1024*1024):.1f} MB ({percent:.1f}%)", flush=True)
+        return chunk
+
+    def __iter__(self):
+        chunk_size = 1024 * 1024 * 4
+        while True:
+            chunk = self.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
+
+    def close(self):
+        self.f.close()
+
 def main():
     token = get_github_token()
     if not token:
-        print("Error: GitHub token not found from env or git credential helper")
+        print("Error: GitHub token not found")
         sys.exit(1)
         
-    if not os.path.isfile(ZIP_PATH):
-        print(f"Error: Zip file not found at {ZIP_PATH}")
-        sys.exit(1)
-    
-    file_size = os.path.getsize(ZIP_PATH)
-    file_name = os.path.basename(ZIP_PATH)
-    print(f"Found asset: {file_name} ({file_size / (1024*1024):.2f} MB)")
-    
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
         "User-Agent": "subcraft-release-script",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    
     client = httpx.Client(timeout=600.0)
     
-    # 1. Check if release for tag already exists
-    print(f"Checking existing release for tag {TAG}...")
+    # 1. Get or create release
     r = client.get(f"https://api.github.com/repos/{REPO}/releases/tags/{TAG}", headers=headers)
     if r.status_code == 200:
         release_data = r.json()
         release_id = release_data["id"]
-        print(f"Release already exists with ID: {release_id}")
+        # Update body
+        client.patch(
+            f"https://api.github.com/repos/{REPO}/releases/{release_id}",
+            headers=headers,
+            json={"name": TITLE, "body": BODY}
+        )
     elif r.status_code == 404:
-        print("Creating new release...")
         payload = {
             "tag_name": TAG,
             "target_commitish": "master",
@@ -98,77 +140,44 @@ def main():
             "prerelease": False,
         }
         r = client.post(f"https://api.github.com/repos/{REPO}/releases", headers=headers, json=payload)
-        if r.status_code not in (200, 201):
-            print(f"Failed to create release: {r.status_code} - {r.text}")
-            sys.exit(1)
         release_data = r.json()
         release_id = release_data["id"]
-        print(f"Created release with ID: {release_id}, URL: {release_data.get('html_url')}")
     else:
-        print(f"Unexpected status checking release: {r.status_code} - {r.text}")
+        print(f"Error checking release: {r.status_code}")
         sys.exit(1)
-
-    # 2. Check if asset already exists in the release
-    assets = release_data.get("assets", [])
-    for a in assets:
-        if a.get("name") == file_name:
-            print(f"Asset {file_name} already exists (ID: {a.get('id')}). Deleting old asset first...")
-            del_r = client.delete(f"https://api.github.com/repos/{REPO}/releases/assets/{a.get('id')}", headers=headers)
-            print(f"Delete result: {del_r.status_code}")
-
-    # 3. Upload asset with streaming
-    upload_url = f"https://uploads.github.com/repos/{REPO}/releases/{release_id}/assets?name={file_name}"
-    print(f"Uploading {file_name} ({file_size / (1024*1024):.2f} MB) to {upload_url}...")
-
-    upload_headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/zip",
-        "User-Agent": "subcraft-release-script",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "Content-Length": str(file_size),
-    }
-
-    class ProgressFileReader:
-        def __init__(self, filepath, total_size):
-            self.f = open(filepath, "rb")
-            self.total_size = total_size
-            self.uploaded = 0
-            self.last_reported = 0
-
-        def read(self, size=-1):
-            chunk = self.f.read(size)
-            if chunk:
-                self.uploaded += len(chunk)
-                percent = (self.uploaded / self.total_size) * 100
-                if percent - self.last_reported >= 5 or self.uploaded == self.total_size:
-                    self.last_reported = percent
-                    print(f"Upload progress: {self.uploaded / (1024*1024):.1f} / {self.total_size / (1024*1024):.1f} MB ({percent:.1f}%)", flush=True)
-            return chunk
-
-        def __iter__(self):
-            chunk_size = 1024 * 1024 * 4  # 4MB chunks
-            while True:
-                chunk = self.read(chunk_size)
-                if not chunk:
-                    break
-                yield chunk
-
-        def close(self):
-            self.f.close()
-
-    reader = ProgressFileReader(ZIP_PATH, file_size)
-    try:
-        up_resp = client.post(upload_url, headers=upload_headers, content=reader)
-        if up_resp.status_code in (200, 201):
-            asset_data = up_resp.json()
-            print(f"Successfully uploaded {file_name}!")
-            print(f"Download URL: {asset_data.get('browser_download_url')}")
-            print(f"Release URL: {release_data.get('html_url')}")
-        else:
-            print(f"Upload failed: {up_resp.status_code} - {up_resp.text}")
-            sys.exit(1)
-    finally:
-        reader.close()
+        
+    # 2. Upload all assets
+    existing_assets = {a["name"]: a["id"] for a in release_data.get("assets", [])}
+    
+    for path in ASSETS:
+        if not os.path.isfile(path):
+            print(f"Skipping missing asset: {path}")
+            continue
+        fname = os.path.basename(path)
+        fsize = os.path.getsize(path)
+        if fname in existing_assets:
+            print(f"Deleting old asset {fname}...")
+            client.delete(f"https://api.github.com/repos/{REPO}/releases/assets/{existing_assets[fname]}", headers=headers)
+            
+        print(f"Uploading {fname} ({fsize / (1024*1024):.2f} MB)...")
+        content_type = "application/gzip" if fname.endswith(".tar.gz") else "application/zip"
+        upload_url = f"https://uploads.github.com/repos/{REPO}/releases/{release_id}/assets?name={fname}"
+        upload_headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": content_type,
+            "User-Agent": "subcraft-release-script",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Length": str(fsize),
+        }
+        reader = ProgressFileReader(path, fsize)
+        try:
+            up_resp = client.post(upload_url, headers=upload_headers, content=reader)
+            if up_resp.status_code in (200, 201):
+                print(f"Successfully uploaded {fname}!")
+            else:
+                print(f"Failed to upload {fname}: {up_resp.status_code} - {up_resp.text}")
+        finally:
+            reader.close()
 
 if __name__ == "__main__":
     main()
