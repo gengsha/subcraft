@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/dist/
+backend/build/
+
+# Node
+app/node_modules/
+app/dist/
+
+# 工具与产物
+tools/ffmpeg/
+tools/*.zip
+release/
+安装包/
+subcraft-backend.spec
+
+# 其他
+*.log
+.DS_Store

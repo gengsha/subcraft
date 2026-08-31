@@ -1,0 +1,1296 @@
+/* ==========================================================================
+   量子矢量·拓扑网阵 (Quantum Vector & Lorentz Matrix) 设计系统
+   SubCraft Generator — Production Design Tokens & UI Styles
+   ========================================================================== */
+
+:root {
+  /* 运算底色与拓扑表面 */
+  --quantum-bg: #090a0f;
+  --quantum-bg-elevated: #0f121c;
+  --quantum-surface: rgba(15, 18, 28, 0.85);
+  --quantum-surface-elevated: rgba(22, 27, 42, 0.94);
+  --quantum-surface-hover: rgba(30, 38, 58, 0.9);
+  --quantum-surface-active: rgba(40, 50, 75, 0.95);
+
+  /* 矢量光轨色与高亮激光 */
+  --quantum-blue: #60a5fa;
+  --quantum-blue-dim: #3b82f6;
+  --quantum-purple: #c084fc;
+  --quantum-purple-dim: #a855f7;
+  --quantum-cyan: #38bdf8;
+  --quantum-emerald: #34d399;
+  --quantum-emerald-dim: #10b981;
+  --quantum-rose: #f43f5e;
+  --quantum-laser: #ffffff;
+
+  /* 文字系统 */
+  --quantum-text: #f1f5f9;
+  --quantum-text-dim: #94a3b8;
+  --quantum-text-muted: #64748b;
+
+  /* 标尺、网格与辉光 */
+  --quantum-border: rgba(96, 165, 250, 0.18);
+  --quantum-border-subtle: rgba(255, 255, 255, 0.08);
+  --quantum-border-hover: rgba(96, 165, 250, 0.45);
+  --quantum-border-active: rgba(96, 165, 250, 0.8);
+  --quantum-grid: rgba(96, 165, 250, 0.06);
+  --quantum-glow: 0 0 16px rgba(96, 165, 250, 0.35);
+  --quantum-glow-sm: 0 0 8px rgba(96, 165, 250, 0.25);
+  --quantum-glow-purple: 0 0 16px rgba(192, 132, 252, 0.35);
+  --quantum-glow-emerald: 0 0 16px rgba(52, 211, 153, 0.35);
+
+  /* 字体系统 */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, 'SF Mono', monospace;
+
+  /* 兼容旧代码的变量别名 */
+  --bg: var(--quantum-bg);
+  --panel: var(--quantum-surface);
+  --panel2: var(--quantum-surface-elevated);
+  --border: var(--quantum-border);
+  --text: var(--quantum-text);
+  --text-dim: var(--quantum-text-dim);
+  --accent: var(--quantum-blue);
+  --accent2: var(--quantum-emerald);
+  --danger: var(--quantum-rose);
+}
+
+/* 基础重置与排版 */
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--quantum-bg);
+}
+
+body {
+  background-color: var(--quantum-bg);
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(96, 165, 250, 0.08) 0%, transparent 60%),
+    radial-gradient(circle at 100% 100%, rgba(192, 132, 252, 0.05) 0%, transparent 50%),
+    linear-gradient(var(--quantum-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--quantum-grid) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 24px 24px, 24px 24px;
+  color: var(--quantum-text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 量子矢量滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(9, 10, 15, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(96, 165, 250, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(96, 165, 250, 0.45);
+}
+
+/* 按钮通用规范 */
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--quantum-surface);
+  color: var(--quantum-text);
+  border: 1px solid var(--quantum-border);
+  border-radius: 6px;
+  padding: 6px 13px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+  position: relative;
+  user-select: none;
+}
+
+button:hover {
+  background: var(--quantum-surface-hover);
+  border-color: var(--quantum-border-hover);
+  color: #ffffff;
+  box-shadow: var(--quantum-glow-sm);
+}
+
+button:active {
+  background: var(--quantum-surface-active);
+}
+
+button.primary {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(96, 165, 250, 0.95));
+  border-color: rgba(147, 197, 253, 0.5);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.3);
+  font-weight: 600;
+}
+
+button.primary:hover {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  border-color: #ffffff;
+  box-shadow: 0 0 16px rgba(96, 165, 250, 0.6);
+}
+
+button.success {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(52, 211, 153, 0.95));
+  border-color: rgba(110, 231, 183, 0.5);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
+  font-weight: 600;
+}
+
+button.success:hover {
+  background: linear-gradient(135deg, #10b981, #34d399);
+  border-color: #ffffff;
+  box-shadow: 0 0 16px rgba(52, 211, 153, 0.6);
+}
+
+button:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: var(--quantum-border-subtle) !important;
+}
+
+/* 输入框与控件 */
+input, select, textarea {
+  background: rgba(10, 13, 22, 0.85);
+  color: var(--quantum-text);
+  border: 1px solid var(--quantum-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  transition: all 0.16s ease;
+  backdrop-filter: blur(6px);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--quantum-blue);
+  box-shadow: 0 0 12px rgba(96, 165, 250, 0.35);
+  background: rgba(13, 17, 30, 0.95);
+}
+
+input[type='color'] {
+  padding: 0;
+  width: 32px;
+  height: 26px;
+  cursor: pointer;
+  border: 1px solid var(--quantum-border);
+  border-radius: 5px;
+  background: transparent;
+}
+input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+input[type='color']::-webkit-color-swatch {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+input[type='checkbox'], input[type='radio'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--quantum-blue);
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   主应用结构 (Layout Architecture)
+   ========================================================================== */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* 顶栏 (TopBar) - 量子仪表盘 */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  height: 52px;
+  min-height: 52px;
+  max-height: 52px;
+  background: rgba(10, 13, 22, 0.96);
+  border-bottom: 1px solid var(--quantum-border);
+  backdrop-filter: blur(16px);
+  position: relative;
+  z-index: 20;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
+}
+
+.topbar::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.4), rgba(192, 132, 252, 0.4), transparent);
+  pointer-events: none;
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.topbar .title {
+  font-weight: 700;
+  font-size: 14.5px;
+  letter-spacing: 0.03em;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.topbar .title-badge {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(96, 165, 250, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  color: var(--quantum-blue);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+/* 量子矢量工作流按钮系统 (Quantum Vector Pipeline Buttons) */
+.workflow-pipeline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  background: rgba(15, 19, 32, 0.7);
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--quantum-border);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.pipeline-connector {
+  color: rgba(96, 165, 250, 0.35);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: bold;
+  line-height: 1;
+  user-select: none;
+  padding: 0 2px;
+}
+
+.quantum-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.quantum-btn .btn-step {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--quantum-text-dim);
+  line-height: 1.2;
+}
+
+/* 00 导入视频按钮 */
+.quantum-btn.btn-import {
+  background: rgba(18, 24, 40, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #f1f5f9;
+}
+.quantum-btn.btn-import:hover:not(:disabled) {
+  border-color: var(--quantum-cyan);
+  background: rgba(56, 189, 248, 0.18);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
+  color: #ffffff;
+}
+
+/* 01 识别字幕按钮 (Quantum Blue) */
+.quantum-btn.btn-transcribe {
+  background: linear-gradient(135deg, rgba(29, 78, 216, 0.85), rgba(59, 130, 246, 0.95));
+  border: 1px solid rgba(147, 197, 253, 0.6);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.3);
+}
+.quantum-btn.btn-transcribe .btn-step {
+  background: rgba(15, 23, 42, 0.6);
+  color: #bfdbfe;
+  border-color: rgba(191, 219, 254, 0.3);
+}
+.quantum-btn.btn-transcribe:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb, #60a5fa);
+  border-color: #ffffff;
+  box-shadow: 0 0 18px rgba(96, 165, 250, 0.65);
+  transform: translateY(-0.5px);
+}
+
+/* 02 翻译按钮 (Quantum Entangled Purple) */
+.quantum-btn.btn-translate {
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.85), rgba(168, 85, 247, 0.95));
+  border: 1px solid rgba(216, 180, 254, 0.6);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(147, 51, 234, 0.3);
+}
+.quantum-btn.btn-translate .btn-step {
+  background: rgba(15, 23, 42, 0.6);
+  color: #e9d5ff;
+  border-color: rgba(233, 213, 255, 0.3);
+}
+.quantum-btn.btn-translate:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7c3aed, #c084fc);
+  border-color: #ffffff;
+  box-shadow: 0 0 18px rgba(192, 132, 252, 0.65);
+  transform: translateY(-0.5px);
+}
+
+/* 03 导出按钮 (Quantum Emerald / Laser Cyan) */
+.quantum-btn.btn-export {
+  background: linear-gradient(135deg, rgba(4, 120, 87, 0.85), rgba(16, 185, 129, 0.95));
+  border: 1px solid rgba(110, 231, 183, 0.6);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
+}
+.quantum-btn.btn-export .btn-step {
+  background: rgba(15, 23, 42, 0.6);
+  color: #a7f3d0;
+  border-color: rgba(167, 243, 208, 0.3);
+}
+.quantum-btn.btn-export:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669, #34d399);
+  border-color: #ffffff;
+  box-shadow: 0 0 18px rgba(52, 211, 153, 0.65);
+  transform: translateY(-0.5px);
+}
+
+/* 设置按钮 */
+.quantum-btn.btn-settings {
+  background: rgba(18, 22, 36, 0.85);
+  border: 1px solid var(--quantum-border);
+  color: var(--quantum-text-dim);
+}
+.quantum-btn.btn-settings:hover:not(:disabled) {
+  background: rgba(25, 32, 52, 0.95);
+  border-color: var(--quantum-border-hover);
+  color: #ffffff;
+  box-shadow: var(--quantum-glow-sm);
+}
+
+.topbar .media-name {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--quantum-cyan);
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 5px;
+  padding: 4px 9px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.topbar .sys-diag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--quantum-text-dim);
+  background: rgba(15, 20, 32, 0.6);
+  border: 1px solid var(--quantum-border-subtle);
+  border-radius: 5px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
+  position: relative;
+}
+
+.status-dot.ok {
+  background: var(--quantum-emerald);
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.8);
+}
+
+.status-dot.bad {
+  background: var(--quantum-rose);
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.8);
+}
+
+.progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+  max-width: 260px;
+  flex-shrink: 0;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(9, 11, 18, 0.85);
+  border: 1px solid var(--quantum-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar > div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--quantum-blue), var(--quantum-cyan));
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.5);
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.progress-msg {
+  color: var(--quantum-text-dim);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 主内容双栏布局 (Main Content) */
+.main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 左侧栏：视频播放器 + 样式面板 */
+.left {
+  flex: 1.4;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--quantum-border);
+  background: rgba(10, 13, 20, 0.6);
+  position: relative;
+}
+
+.video-area {
+  flex: 1;
+  position: relative;
+  background: #000000;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.video-area video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* jassub libass WebAssembly 画布覆盖层 */
+.video-area > .JASSUB {
+  position: absolute !important;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.video-area:has(video):not(:has(.progress-overlay)) video {
+  cursor: grab;
+}
+.video-area:has(video):not(:has(.progress-overlay)) video:active {
+  cursor: grabbing;
+}
+
+/* 视频空状态 */
+.video-empty {
+  position: relative;
+  z-index: 2;
+  color: var(--quantum-text-dim);
+  text-align: center;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.video-empty .lorenz-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.55;
+}
+
+.video-empty .empty-card {
+  position: relative;
+  z-index: 2;
+  background: rgba(15, 18, 30, 0.8);
+  border: 1px solid var(--quantum-border);
+  border-radius: 12px;
+  padding: 24px 36px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), var(--quantum-glow-sm);
+}
+
+.video-empty .big-icon {
+  font-size: 38px;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 0 12px rgba(96, 165, 250, 0.5));
+}
+
+.video-empty .empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 6px;
+  letter-spacing: 0.03em;
+}
+
+.video-empty .empty-sub {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--quantum-cyan);
+}
+
+/* 视频四角取景标尺 (HUD Viewfinder) */
+.hud-corner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-color: rgba(96, 165, 250, 0.4);
+  pointer-events: none;
+  z-index: 5;
+}
+.hud-corner.tl { top: 8px; left: 8px; border-top: 2px solid; border-left: 2px solid; }
+.hud-corner.tr { top: 8px; right: 8px; border-top: 2px solid; border-right: 2px solid; }
+.hud-corner.bl { bottom: 8px; left: 8px; border-bottom: 2px solid; border-left: 2px solid; }
+.hud-corner.br { bottom: 8px; right: 8px; border-bottom: 2px solid; border-right: 2px solid; }
+
+/* 样式面板 (StylePanel) */
+.style-panel {
+  padding: 12px 16px;
+  background: var(--quantum-surface);
+  border-top: 1px solid var(--quantum-border);
+  backdrop-filter: blur(12px);
+}
+
+.style-panel h4 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--quantum-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.style-panel h4 .tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 6px;
+  background: rgba(96, 165, 250, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: 4px;
+  color: var(--quantum-blue);
+}
+
+.style-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+}
+
+.style-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.style-item label {
+  color: var(--quantum-text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.style-item input[type='number'] {
+  width: 62px;
+  font-family: var(--font-mono);
+  padding: 4px 6px;
+}
+
+.pos-reset {
+  font-size: 12px;
+  padding: 4px 10px;
+  background: rgba(192, 132, 252, 0.15);
+  border-color: rgba(192, 132, 252, 0.35);
+  color: var(--quantum-purple);
+}
+.pos-reset:hover {
+  background: rgba(192, 132, 252, 0.25);
+  border-color: var(--quantum-purple);
+  box-shadow: var(--quantum-glow-purple);
+}
+
+.style-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--quantum-text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ==========================================================================
+   右侧栏：轨道切换与字幕编辑流
+   ========================================================================== */
+
+.right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 400px;
+  background: rgba(10, 13, 22, 0.7);
+  backdrop-filter: blur(12px);
+}
+
+/* 轨道栏 (TrackTabs) */
+.track-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--quantum-surface);
+  border-bottom: 1px solid var(--quantum-border);
+  flex-wrap: wrap;
+  backdrop-filter: blur(12px);
+}
+
+.track-tab {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--quantum-border);
+  background: rgba(18, 22, 34, 0.75);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.16s ease;
+  user-select: none;
+}
+
+.track-tab:hover {
+  border-color: var(--quantum-border-hover);
+  background: var(--quantum-surface-hover);
+  color: #ffffff;
+}
+
+.track-tab.active {
+  border-color: var(--quantum-blue);
+  background: rgba(96, 165, 250, 0.16);
+  color: #ffffff;
+  box-shadow: var(--quantum-glow-sm);
+}
+
+.track-tab .badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: rgba(9, 11, 18, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--quantum-text-dim);
+}
+
+.track-tab.active .badge {
+  border-color: rgba(96, 165, 250, 0.4);
+  color: var(--quantum-blue);
+}
+
+.track-tab .del {
+  color: var(--quantum-text-muted);
+  margin-left: 2px;
+  font-size: 12px;
+  transition: color 0.15s;
+}
+
+.track-tab .del:hover {
+  color: var(--quantum-rose);
+}
+
+.bilingual-toggle {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--quantum-text-dim);
+  font-size: 12px;
+  user-select: none;
+}
+
+.track-tabs .clean-empty {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 4px 9px;
+  cursor: pointer;
+  color: var(--quantum-rose);
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  border-radius: 5px;
+  transition: all 0.15s ease;
+}
+
+.track-tabs .clean-empty:hover {
+  background: rgba(244, 63, 94, 0.18);
+  border-color: var(--quantum-rose);
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.35);
+}
+
+.track-tabs .clean-empty + .bilingual-toggle,
+.bilingual-toggle + .clean-empty {
+  margin-left: 0;
+}
+
+/* 字幕列表 (SubtitleList) */
+.subtitle-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.seg-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 96px 96px 1fr;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin-bottom: 5px;
+  background: rgba(15, 18, 28, 0.65);
+  border: 1px solid var(--quantum-border-subtle);
+  transition: all 0.15s ease;
+}
+
+.seg-row:hover {
+  border-color: var(--quantum-border);
+  background: rgba(20, 25, 40, 0.8);
+}
+
+.seg-row.active {
+  border-color: var(--quantum-blue);
+  background: rgba(30, 42, 68, 0.75);
+  box-shadow: inset 3px 0 0 var(--quantum-blue), 0 0 12px rgba(96, 165, 250, 0.2);
+}
+
+.seg-row input.time {
+  width: 100%;
+  font-size: 11.5px;
+  padding: 4px 6px;
+  font-family: var(--font-mono);
+  background: rgba(9, 11, 18, 0.85);
+  border-color: rgba(96, 165, 250, 0.15);
+  color: var(--quantum-cyan);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.seg-row input.time:focus {
+  border-color: var(--quantum-blue);
+  color: #ffffff;
+}
+
+.seg-row textarea {
+  width: 100%;
+  resize: none;
+  min-height: 34px;
+  font-size: 13px;
+  line-height: 1.45;
+  background: rgba(9, 11, 18, 0.75);
+  border-color: var(--quantum-border-subtle);
+  color: var(--quantum-text);
+  padding: 5px 8px;
+}
+
+.seg-row textarea:focus {
+  border-color: var(--quantum-blue);
+  background: rgba(10, 14, 25, 0.95);
+}
+
+.seg-row .seg-del {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  color: var(--quantum-text-dim);
+  background: rgba(24, 30, 48, 0.9);
+  border: 1px solid var(--quantum-border);
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.seg-row:hover .seg-del {
+  opacity: 1;
+}
+
+.seg-row .seg-del:hover {
+  color: #ffffff;
+  background: var(--quantum-rose);
+  border-color: var(--quantum-rose);
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.5);
+}
+
+.list-empty {
+  color: var(--quantum-text-muted);
+  text-align: center;
+  padding: 60px 20px;
+  line-height: 2;
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   任务进度全息覆盖层 (ProgressOverlay)
+   ========================================================================= */
+
+.progress-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(9, 10, 15, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(8px);
+}
+
+.progress-card {
+  width: 440px;
+  max-width: 88%;
+  background: rgba(16, 20, 32, 0.95);
+  border: 1px solid var(--quantum-border-hover);
+  border-radius: 14px;
+  padding: 28px 32px 26px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), var(--quantum-glow);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--quantum-blue), var(--quantum-purple), var(--quantum-cyan));
+}
+
+.progress-card.error {
+  border-color: var(--quantum-rose);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), 0 0 24px rgba(244, 63, 94, 0.35);
+}
+
+.progress-card.error::before {
+  background: var(--quantum-rose);
+}
+
+.progress-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+}
+
+.progress-pct {
+  font-size: 46px;
+  font-weight: 700;
+  color: var(--quantum-blue);
+  font-variant-numeric: tabular-nums;
+  margin: 10px 0 14px;
+  font-family: var(--font-mono);
+  text-shadow: 0 0 16px rgba(96, 165, 250, 0.5);
+}
+
+.progress-track {
+  height: 12px;
+  background: rgba(9, 11, 18, 0.95);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--quantum-border);
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa, #c084fc, #3b82f6);
+  background-size: 250% 100%;
+  animation: progress-shimmer 1.6s linear infinite;
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 12px rgba(96, 165, 250, 0.6);
+}
+
+.progress-track.indeterminate .progress-fill {
+  animation: progress-shimmer 1.6s linear infinite, progress-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes progress-shimmer {
+  from { background-position: 250% 0; }
+  to { background-position: -250% 0; }
+}
+
+@keyframes progress-slide {
+  0% { margin-left: 0; }
+  50% { margin-left: 70%; }
+  100% { margin-left: 0; }
+}
+
+.progress-detail {
+  margin-top: 14px;
+  color: var(--quantum-text-dim);
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  min-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-detail.error-text {
+  color: var(--quantum-rose);
+  white-space: normal;
+  margin-bottom: 14px;
+  font-family: var(--font-sans);
+}
+
+.progress-spinner {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 12px;
+  border: 2px solid rgba(96, 165, 250, 0.18);
+  border-top-color: var(--quantum-blue);
+  border-right-color: var(--quantum-purple);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   弹窗系统 (Dialogs & Modals) - 全局 Portal 渲染
+   ========================================================================== */
+
+.dialog-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 7, 12, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.dialog {
+  background: rgba(15, 18, 30, 0.96);
+  border: 1px solid var(--quantum-border-hover);
+  border-radius: 12px;
+  width: 500px;
+  max-width: 92vw;
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 24px 26px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.85), var(--quantum-glow);
+  position: relative;
+  z-index: 10001;
+}
+
+.dialog::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--quantum-blue), var(--quantum-cyan), var(--quantum-purple));
+}
+
+.dialog h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+.dialog .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.dialog .row > label {
+  width: 110px;
+  color: var(--quantum-text-dim);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.dialog .row > input,
+.dialog .row > select {
+  flex: 1;
+}
+
+.dialog .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--quantum-border-subtle);
+}
+
+.dialog .hint {
+  color: var(--quantum-text-dim);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.burn-preview {
+  margin-bottom: 14px;
+  padding: 12px;
+  background: rgba(9, 11, 18, 0.8);
+  border: 1px solid var(--quantum-border);
+  border-radius: 8px;
+}
+
+.burn-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  margin: 0 auto 8px;
+  border-radius: 6px;
+  border: 1px solid var(--quantum-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: opacity 0.2s;
+}
+
+.burn-preview img.loading {
+  opacity: 0.4;
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.checkbox-row label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--quantum-text);
+  cursor: pointer;
+}
+
+/* 设置对话框与算力节点管理 */
+.dialog.wide {
+  width: 660px;
+}
+
+.section-head {
+  margin: 20px 0 12px;
+  padding-bottom: 6px;
+  font-weight: 600;
+  font-size: 13.5px;
+  border-bottom: 1px solid var(--quantum-border);
+  color: var(--quantum-cyan);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-head:first-of-type {
+  margin-top: 0;
+}
+
+.provider-card {
+  background: rgba(18, 22, 36, 0.8);
+  border: 1px solid var(--quantum-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  transition: border-color 0.16s;
+}
+
+.provider-card:hover {
+  border-color: var(--quantum-border-hover);
+}
+
+.provider-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.provider-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 13.5px;
+  background: transparent;
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.provider-name:hover, .provider-name:focus {
+  background: rgba(10, 13, 22, 0.85);
+  border-color: var(--quantum-border);
+}
+
+.test-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.3);
+  color: var(--quantum-blue);
+}
+
+.test-btn:hover {
+  background: rgba(96, 165, 250, 0.22);
+  border-color: var(--quantum-blue);
+}
+
+.del-btn {
+  padding: 4px 8px;
+  color: var(--quantum-text-dim);
+  background: transparent;
+  border-color: transparent;
+}
+
+.del-btn:hover {
+  color: var(--quantum-rose);
+  background: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.3);
+}
+
+.test-badge {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.test-badge.ok {
+  color: var(--quantum-emerald);
+}
+
+.test-badge.fail {
+  color: var(--quantum-rose);
+}
+
+.test-badge.testing {
+  color: var(--quantum-text-dim);
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 6px;
+}
+
+.preset-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  background: rgba(18, 22, 34, 0.7);
+  border-color: var(--quantum-border-subtle);
+  color: var(--quantum-text-dim);
+}
+
+.preset-btn:hover {
+  color: var(--quantum-cyan);
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(56, 189, 248, 0.1);
+}
