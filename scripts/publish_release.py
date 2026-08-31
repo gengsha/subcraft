@@ -27,43 +27,34 @@ def get_github_token() -> str:
         print(f"Warning: Could not get credential from git: {e}")
     return ""
 
-BODY = """# 🎬 SubCraft 字幕生成器 (SubCraft) v0.1.0
+BODY = """# SubCraft v0.1.0 (Windows x64)
 
-新一代视频语音识别 · AI 多厂商智能翻译 · 双语可视化排版 · 画布拖动定位 · 无损/烧录导出桌面端应用。
+视频语音识别、AI 多厂商翻译、双语排版与字幕制作工具。
 
 ---
 
-### 📦 资产下载 (Downloads)
+### 资产下载 (Downloads)
 
-| 平台 | 文件名 | 文件大小 | 说明 |
+| 文件名 | 文件大小 | 平台 | 说明 |
 |---|---|---|---|
-| **Windows x64** | `SubCraft-0.1.0-win-x64.zip` | ~281 MB | 便携免安装版（内置 Python 独立后端与 ffmpeg 运行时，解压即用） |
+| `SubCraft-0.1.0-win-x64.zip` | ~281 MB | Windows x64 | 便携免安装版（内置 Python 独立后端与 ffmpeg 运行时，解压即用） |
 
-> 💡 **使用提示**：下载后解压到任意目录，双击运行 `SubCraft.exe` 即可使用。首次使用本地语音识别时，将自动按需下载 Whisper 模型权重。
-
----
-
-### ✨ 核心功能亮点 (Key Features)
-
-- 🎙 **本地与云端双引擎 ASR**：内置 faster-whisper（支持 NVIDIA CUDA 12 GPU 加速与离线识别），同时兼容 OpenAI Whisper 云端 API。
-- 🌐 **AI 大模型多厂商翻译**：支持 OpenAI、DeepSeek、Kimi (Moonshot)、通义千问 (Qwen)、智谱 GLM、Claude / OpenRouter 及 DeepL，批量并发与段号对齐协议，严格保证时间轴与段落 100% 对齐。
-- 🈶 **双语/多轨同屏管理**：自由切换源语言与多目标语言轨道；双语对照模式下主副语言独立配置字体、字号、颜色、描边、阴影与摆放位置。
-- 👁 **真正所见即所得 (WYSIWYG)**：集成 WebAssembly 版 jassub (libass)，播放与暂停状态下毫秒级呈现真实 ASS 渲染效果。
-- 🖱 **视频画布自由拖拽定位**：独创交互体验，在视频画面上按住字幕即可自由拖拽中心点坐标；双语各轨独立拖动互不干扰。
-- ✏️ **专业级字幕时间轴编辑器**：支持行内直接修改文本与微调时间码，点击自动跳转试听，播放高亮滚动跟随，一键全轨道清理空段落。
-- 💾 **全能导出与烧录预览**：
-  - **硬字幕内嵌烧录 (MP4)**：libx264 CRF 18 高画质压制，自带真实烧录预览帧，全平台兼容；
-  - **软字幕 MKV 无损封装**：视频流直接复制，画质 0 损耗，秒级极速导出；
-  - **独立外挂字幕**：SRT / ASS 独立及双语合并文件导出。
+使用提示：下载后解压到任意目录，双击运行 `SubCraft.exe` 即可使用。首次使用本地语音识别时，将自动按需下载 Whisper 模型权重。
 
 ---
 
-### 🌐 English Summary
-- **Local & Cloud ASR**: Embedded with faster-whisper (CTranslate2, CUDA 12 GPU accelerated) & OpenAI Whisper API.
-- **Multi-Provider AI Translation**: DeepSeek, OpenAI, Kimi, Qwen, GLM, OpenRouter, DeepL with strict timeline alignment.
-- **WYSIWYG libass Rendering**: jassub WebAssembly real-time preview.
-- **Canvas Drag-and-Drop Positioning**: Drag subtitles directly on video player with independent bilingual coordinates.
-- **Multi-Format Export**: Hardsub MP4 (libx264 CRF 18) with real-time preview, Lossless softsub MKV, and SRT/ASS files.
+### 功能特性
+
+- 语音识别 (ASR)：内置 faster-whisper（支持 NVIDIA CUDA GPU 加速与离线识别），同时兼容 OpenAI Whisper 云端 API。
+- AI 翻译：支持 OpenAI、DeepSeek、Kimi (Moonshot)、通义千问 (Qwen)、智谱 GLM、Claude / OpenRouter 及 DeepL，保持时间轴与段落对齐。
+- 双语与多轨管理：自由切换源语言与多目标语言轨道；双语对照模式下主副语言独立配置字体、字号、颜色、描边、阴影与摆放位置。
+- 实时预览：集成 jassub (libass WASM)，播放与暂停状态下实时呈现 ASS 渲染效果。
+- 画布拖动定位：在视频画面上按住字幕即可自由拖动调整位置，双语各轨独立拖动。
+- 字幕编辑器：支持文本行内修改与微调时间码，点击跳转试听，播放高亮滚动跟随，一键清理空段落。
+- 导出支持：
+  - 硬字幕内嵌烧录 (MP4)：libx264 CRF 18 压制，支持真实烧录预览帧。
+  - 软字幕 MKV 无损封装：视频音频流直接复制，秒级导出。
+  - 独立字幕文件：SRT / ASS 独立及双语合并文件导出。
 """
 
 def main():
