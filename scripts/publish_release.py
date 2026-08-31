@@ -10,7 +10,7 @@ TITLE = "SubCraft 字幕生成器 v0.1.1"
 ASSETS = [
     os.path.abspath(r"release\SubCraft-0.1.1-win-x64.zip"),
     os.path.abspath(r"release\SubCraft-0.1.1-portable.exe"),
-    os.path.abspath(r"release\linux\SubCraft-0.1.0-x64-linux.tar.gz"),
+    os.path.abspath(r"release\linux\SubCraft-0.1.1-x64-linux.tar.gz"),
 ]
 
 def get_github_token() -> str:
@@ -44,7 +44,7 @@ BODY = """# SubCraft v0.1.1
 |---|---|---|
 | **Windows x64** | `SubCraft-0.1.1-win-x64.zip` | 便携免安装版（内置 Python 独立后端与 ffmpeg 运行时，解压即用） |
 | **Windows x64** | `SubCraft-0.1.1-portable.exe` | 单文件便携运行版 |
-| **Linux x64** | `SubCraft-0.1.0-x64-linux.tar.gz` | Linux 独立安装包（解压后依赖系统 python3 与 ffmpeg） |
+| **Linux x64** | `SubCraft-0.1.1-x64-linux.tar.gz` | Linux 独立安装包（解压后依赖系统 python3 与 ffmpeg） |
 
 #### v0.1.1 更新说明：
 - 修复打包环境下 Whisper 语音识别缺失 `cublas64_12.dll` 导致报错的问题。
@@ -57,8 +57,8 @@ BODY = """# SubCraft v0.1.1
 #### Linux 使用提示：
 ```bash
 # 解压
-tar -xzf SubCraft-0.1.0-x64-linux.tar.gz
-cd SubCraft-0.1.0-x64-linux
+tar -xzf SubCraft-0.1.1-x64-linux.tar.gz
+cd SubCraft-0.1.1-x64-linux
 
 # 安装系统与后端依赖 (Ubuntu / Debian 示例)
 sudo apt update && sudo apt install -y ffmpeg python3 python3-pip
