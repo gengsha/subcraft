@@ -20,3 +20,8 @@ subcraft-backend.spec
 # 其他
 *.log
 .DS_Store
+
+# 本地 IDE / MCP 客户端登记配置（含机器绝对路径，不入库）
+.qoder-cn/
+.qoder/
+.zcode/
