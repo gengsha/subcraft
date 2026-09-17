@@ -27,6 +27,7 @@
   - [6. 样式调整与画布拖动定位](#6-样式调整与画布拖动定位)
   - [7. 导出字幕与视频](#7-导出字幕与视频)
   - [8. MCP 服务（AI 客户端接入）](#8-mcp-服务ai-客户端接入)
+  - [9. 命令行 (CLI)](#9-命令行-cli)
 - [编译与构建](#编译与构建)
 - [技术架构](#技术架构)
 - [常见问题 (FAQ)](#常见问题-faq)
@@ -189,6 +190,32 @@ Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可
 - **会话态**：字幕轨保存在 MCP 进程内存中（`t1`/`t2`...），跨会话用 `subcraft_save_project` / `subcraft_load_project` 落盘恢复。
 - **传输**：默认 stdio；`--transport streamable-http --port 47660` 可切换为 HTTP。
 
+#### 9. 命令行 (CLI)
+
+不启动桌面客户端、也不接 AI 客户端，直接在终端跑通全链路（适合脚本化与批处理）：
+
+```powershell
+.\.venv\Scripts\python.exe backend\cli.py status                                  # 环境自检
+.\.venv\Scripts\python.exe backend\cli.py gen video.mp4 -t zh --video soft        # 一条龙：识别+翻译+导出+封装
+.\.venv\Scripts\python.exe backend\cli.py gen video.mp4 -t zh --primary-target    # 双语以译文为主行
+.\.venv\Scripts\python.exe backend\cli.py transcribe video.mp4 -o out             # 只识别
+.\.venv\Scripts\python.exe backend\cli.py translate in.en.srt -t zh -o out        # 只翻译（含双语导出）
+.\.venv\Scripts\python.exe backend\cli.py export -s zh.srt -s en.srt --media v.mp4 --video hard -o out
+.\.venv\Scripts\python.exe backend\cli.py preview -s zh.srt -s en.srt --media v.mp4 --time 12.5 -o f.jpg
+```
+
+| 命令 | 说明 |
+| --- | --- |
+| `status` / `probe` / `fonts` | 环境自检（ffmpeg/CUDA/厂商）、媒体探测、系统字体列表 |
+| `transcribe` | 语音识别并导出字幕文件（`--engine` / `--model` / `--lang`） |
+| `translate` | 翻译字幕文件并导出单语+双语（`--provider` / `--primary-target`） |
+| `gen` | 一条龙：识别 → 可选翻译 → 导出字幕 / 软封装 / 硬烧录 |
+| `export` | 用已有字幕文件导出字幕 / 封装 / 烧录（`-s` 可重复，`--primary` 指定主行） |
+| `preview` | 渲染指定时间点的真实烧录预览图（与硬字幕同一 ffmpeg 管线） |
+
+约定：进度走 stderr、结果走 stdout；`--json` 输出机器可读 JSON；预期内错误退出码 2；
+翻译凭据复用桌面客户端本地配置；非主轨自动套副语言样式（字号 0.7 倍 + 淡黄）。
+
 ---
 
 ### 编译与构建
@@ -256,6 +283,7 @@ A: 选中的字体可能缺少对应语言的字形。请在样式面板中选�
   - [6. Styling & Canvas Drag Positioning](#6-styling--canvas-drag-positioning)
   - [7. Export Subtitles & Video](#7-export-subtitles--video)
   - [8. MCP Server (AI Client Integration)](#8-mcp-server-ai-client-integration)
+  - [9. Command Line (CLI)](#9-command-line-cli)
 - [Build & Packaging](#build--packaging)
 - [Architecture](#architecture)
 - [FAQ](#faq)
@@ -416,6 +444,34 @@ Notes:
 - **Long tasks**: ASR/translation/encoding accept `wait=false` to return a `job_id` immediately (poll with `subcraft_job_status`); with `wait=true` progress is reported over the MCP protocol.
 - **Session state**: tracks live in the MCP process memory (`t1`, `t2`, ...); persist across sessions with `subcraft_save_project` / `subcraft_load_project`.
 - **Transport**: stdio by default; `--transport streamable-http --port 47660` switches to HTTP.
+
+#### 9. Command Line (CLI)
+
+Run the whole pipeline straight from a terminal — no desktop app, no AI client required
+(ideal for scripting and batch jobs):
+
+```powershell
+.\.venv\Scripts\python.exe backend\cli.py status                                  # environment self-check
+.\.venv\Scripts\python.exe backend\cli.py gen video.mp4 -t zh --video soft        # one-shot: ASR+translate+export+mux
+.\.venv\Scripts\python.exe backend\cli.py gen video.mp4 -t zh --primary-target    # translation as the primary bilingual line
+.\.venv\Scripts\python.exe backend\cli.py transcribe video.mp4 -o out             # ASR only
+.\.venv\Scripts\python.exe backend\cli.py translate in.en.srt -t zh -o out        # translate only (plus bilingual export)
+.\.venv\Scripts\python.exe backend\cli.py export -s zh.srt -s en.srt --media v.mp4 --video hard -o out
+.\.venv\Scripts\python.exe backend\cli.py preview -s zh.srt -s en.srt --media v.mp4 --time 12.5 -o f.jpg
+```
+
+| Command | Description |
+| --- | --- |
+| `status` / `probe` / `fonts` | Self-check (ffmpeg/CUDA/providers), media probe, system font list |
+| `transcribe` | Speech recognition and subtitle file export (`--engine` / `--model` / `--lang`) |
+| `translate` | Translate a subtitle file, export mono + bilingual (`--provider` / `--primary-target`) |
+| `gen` | One-shot pipeline: ASR → optional translation → subtitle files / softsub / hardsub |
+| `export` | Export/mux/burn from existing subtitle files (`-s` repeatable, `--primary` picks the main line) |
+| `preview` | Render a real burn-in preview frame (same ffmpeg pipeline as hardsub) |
+
+Conventions: progress on stderr, results on stdout; `--json` for machine-readable output;
+expected errors exit with code 2; translation credentials are reused from the desktop app's
+local config; non-primary tracks automatically get the secondary style (0.7x size, pale yellow).
 
 ---
 
