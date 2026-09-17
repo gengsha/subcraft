@@ -26,6 +26,7 @@
   - [5. 编辑与校对](#5-编辑与校对)
   - [6. 样式调整与画布拖动定位](#6-样式调整与画布拖动定位)
   - [7. 导出字幕与视频](#7-导出字幕与视频)
+  - [8. MCP 服务（AI 客户端接入）](#8-mcp-服务ai-客户端接入)
 - [编译与构建](#编译与构建)
 - [技术架构](#技术架构)
 - [常见问题 (FAQ)](#常见问题-faq)
@@ -44,6 +45,7 @@
   - 内嵌硬字幕 (MP4)：使用 ffmpeg 进行画面压制（libx264 CRF 18），支持导出前实时预览真实烧录帧。
   - 软字幕封装 (MKV)：无损封装视频流与 ASS / SRT 字幕轨，无需重新编码。
   - 独立字幕文件：支持导出单轨或双语合并的 SRT / ASS 文件。
+- **MCP 服务**：内置 Model Context Protocol 服务端，把识别/翻译/校对/样式/导出全链路开放给 Claude、Cursor、Qoder 等 AI 客户端，一句话即可驱动字幕生产。
 
 ---
 
@@ -140,6 +142,53 @@ npm run dev
 - **软字幕封装 (MKV)**：无损封装视频流与 ASS / SRT 软字幕轨，秒级完成，画质零损耗。
 - **字幕文件**：独立导出单轨或双语合并的 `.srt` / `.ass` 文件。
 
+#### 8. MCP 服务（AI 客户端接入）
+
+SubCraft 内置 MCP（Model Context Protocol）服务端，把「识别 → 翻译 → 校对 → 样式 → 导出」整条链路开放给
+Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可驱动字幕生产。
+
+```powershell
+# 1. 安装 MCP 依赖（桌面客户端不需要，仅 MCP 服务需要）
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements-mcp.txt
+
+# 2. 自检：打印全部工具清单
+.\.venv\Scripts\python.exe backend\mcp_server.py --list-tools
+
+# 3. 端到端冒烟测试（真实拉起 MCP 子进程跑完整链路）
+.\.venv\Scripts\python.exe scripts\mcp_smoke_test.py            # 导入/编辑/样式/导出/封装/预览帧
+.\.venv\Scripts\python.exe scripts\mcp_smoke_test.py --asr      # 追加真实语音识别（TTS 合成语音）
+```
+
+在 AI 客户端的 MCP 配置中登记（路径按实际仓库位置修改）：
+
+```json
+{
+  "mcpServers": {
+    "subcraft": {
+      "command": "E:\\projects\\subcraft\\.venv\\Scripts\\python.exe",
+      "args": ["E:\\projects\\subcraft\\backend\\mcp_server.py"]
+    }
+  }
+}
+```
+
+**工具一览（21 个）**
+
+| 分类 | 工具 |
+| --- | --- |
+| 环境 | `subcraft_status` 自检（ffmpeg/CUDA/已配厂商）、`subcraft_probe_media` 媒体探测、`subcraft_list_fonts` 字体列表 |
+| 生成 | `subcraft_transcribe` 语音识别、`subcraft_translate` AI 翻译、`subcraft_load_subtitle_file` 导入 srt/vtt/ass、`subcraft_generate_subtitles` 一键流水线 |
+| 编辑 | `subcraft_list_tracks`、`subcraft_get_segments`（分页/搜索）、`subcraft_edit_segments`（批量改文本与时间码）、`subcraft_delete_segments`、`subcraft_clean_empty_segments`、`subcraft_set_style` |
+| 导出 | `subcraft_build_ass`、`subcraft_export_subtitle_files`（srt/ass 单语+双语）、`subcraft_export_video`（soft 无损封装 / hard 烧录）、`subcraft_preview_frame`（真实烧录预览图） |
+| 任务/会话 | `subcraft_job_status`（长任务轮询）、`subcraft_save_project` / `subcraft_load_project`、`subcraft_clear_session` |
+
+要点：
+
+- **配置复用**：翻译厂商 API Key 直接复用桌面客户端「设置」里保存的 `%LOCALAPPDATA%\SubCraft\config.json`，MCP 只读不写；也可在调用时临时传 `api_key` / `base_url`。
+- **长任务**：识别/翻译/压制支持 `wait=false` 立即返回 `job_id`，再用 `subcraft_job_status` 轮询；`wait=true` 时按 MCP 协议上报进度。
+- **会话态**：字幕轨保存在 MCP 进程内存中（`t1`/`t2`...），跨会话用 `subcraft_save_project` / `subcraft_load_project` 落盘恢复。
+- **传输**：默认 stdio；`--transport streamable-http --port 47660` 可切换为 HTTP。
+
 ---
 
 ### 编译与构建
@@ -166,6 +215,7 @@ npx vite build
 - **宿主进程**：Electron 33 + TypeScript，负责窗口管理、动态端口分配与 Python 子进程守护。
 - **前端界面**：React 18 + Zustand + Vite，集成 jassub (libass WASM) 实现字幕实时渲染。
 - **后端服务**：Python 3.13 + FastAPI，负责 faster-whisper ASR、多厂商 AI 翻译、ASS/SRT 格式构建与 ffmpeg 封装/压制。
+- **MCP 服务**：`backend/mcp_server.py`（stdio），复用后端 services 层把全链路暴露为 21 个 MCP 工具；会话轨道与后台任务池在 `backend/app/mcp/`。
 - **数据存储**：本地配置文件 `%LOCALAPPDATA%\SubCraft\config.json`，运行日志 `%APPDATA%\subcraft-app\backend.log`。
 
 ---
@@ -205,6 +255,7 @@ A: 选中的字体可能缺少对应语言的字形。请在样式面板中选�
   - [5. Subtitle Editing](#5-subtitle-editing)
   - [6. Styling & Canvas Drag Positioning](#6-styling--canvas-drag-positioning)
   - [7. Export Subtitles & Video](#7-export-subtitles--video)
+  - [8. MCP Server (AI Client Integration)](#8-mcp-server-ai-client-integration)
 - [Build & Packaging](#build--packaging)
 - [Architecture](#architecture)
 - [FAQ](#faq)
@@ -223,6 +274,7 @@ A: 选中的字体可能缺少对应语言的字形。请在样式面板中选�
   - Hardsub (MP4): Burns subtitles into video using libx264 CRF 18 with accurate pre-export preview frames.
   - Lossless Softsub (MKV): Direct stream copy with embedded ASS and fallback SRT tracks.
   - Subtitle Files: Standalone or merged bilingual `.srt` / `.ass` files.
+- **MCP Server**: Built-in Model Context Protocol server exposing the whole pipeline (ASR, translation, editing, styling, export) to AI clients such as Claude, Cursor and Qoder.
 
 ---
 
@@ -318,6 +370,53 @@ Click "3 Export":
 - **Softsub (MKV)**: Lossless multiplexing with ASS/SRT tracks in seconds.
 - **Subtitle Files**: Exports individual or merged `.srt` / `.ass` files.
 
+#### 8. MCP Server (AI Client Integration)
+
+SubCraft ships an MCP (Model Context Protocol) server so AI clients (Claude Desktop, Cursor, Qoder, Cline, ...)
+can drive the full pipeline — transcribe → translate → proofread → style → export — with natural language.
+
+```powershell
+# 1. Install MCP dependencies (only needed for the MCP server, not the desktop app)
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements-mcp.txt
+
+# 2. Self-check: print the registered tool list
+.\.venv\Scripts\python.exe backend\mcp_server.py --list-tools
+
+# 3. End-to-end smoke test (spawns a real MCP subprocess and runs the full chain)
+.\.venv\Scripts\python.exe scripts\mcp_smoke_test.py            # import/edit/style/export/mux/preview frame
+.\.venv\Scripts\python.exe scripts\mcp_smoke_test.py --asr      # plus real speech recognition (TTS-generated voice)
+```
+
+Register it in your AI client's MCP config (adjust paths to your checkout):
+
+```json
+{
+  "mcpServers": {
+    "subcraft": {
+      "command": "E:\\projects\\subcraft\\.venv\\Scripts\\python.exe",
+      "args": ["E:\\projects\\subcraft\\backend\\mcp_server.py"]
+    }
+  }
+}
+```
+
+**Tools (21)**
+
+| Group | Tools |
+| --- | --- |
+| Environment | `subcraft_status` self-check (ffmpeg/CUDA/configured providers), `subcraft_probe_media`, `subcraft_list_fonts` |
+| Generation | `subcraft_transcribe` ASR, `subcraft_translate` AI translation, `subcraft_load_subtitle_file` (srt/vtt/ass), `subcraft_generate_subtitles` one-shot pipeline |
+| Editing | `subcraft_list_tracks`, `subcraft_get_segments` (paging/search), `subcraft_edit_segments` (batch text & timecode edits), `subcraft_delete_segments`, `subcraft_clean_empty_segments`, `subcraft_set_style` |
+| Export | `subcraft_build_ass`, `subcraft_export_subtitle_files` (mono + bilingual srt/ass), `subcraft_export_video` (lossless softsub / burned hardsub), `subcraft_preview_frame` (real burn-in preview image) |
+| Jobs & session | `subcraft_job_status` (poll long tasks), `subcraft_save_project` / `subcraft_load_project`, `subcraft_clear_session` |
+
+Notes:
+
+- **Config reuse**: translation provider API keys are read from the desktop app's local config (`%LOCALAPPDATA%\SubCraft\config.json`); the MCP server never writes it. Per-call `api_key` / `base_url` overrides are also accepted.
+- **Long tasks**: ASR/translation/encoding accept `wait=false` to return a `job_id` immediately (poll with `subcraft_job_status`); with `wait=true` progress is reported over the MCP protocol.
+- **Session state**: tracks live in the MCP process memory (`t1`, `t2`, ...); persist across sessions with `subcraft_save_project` / `subcraft_load_project`.
+- **Transport**: stdio by default; `--transport streamable-http --port 47660` switches to HTTP.
+
 ---
 
 ### Build & Packaging
@@ -344,6 +443,7 @@ npx vite build
 - **Host (Main Process)**: Electron 33 + TypeScript for process lifecycle, dynamic port binding, and native file dialogs.
 - **Frontend (Renderer Process)**: React 18 + Zustand + Vite with jassub (libass WASM) subtitle rendering.
 - **Backend Services**: Python 3.13 + FastAPI for faster-whisper ASR, LLM translation, ASS/SRT formatting, and ffmpeg processing.
+- **MCP Server**: `backend/mcp_server.py` (stdio) reuses the backend service layer to expose 21 MCP tools; session tracks and the background job pool live in `backend/app/mcp/`.
 
 ---
 

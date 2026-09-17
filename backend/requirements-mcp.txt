@@ -1,0 +1,7 @@
+# MCP 服务依赖（可选）：在桌面客户端之外，把 SubCraft 能力暴露给 Claude / Cursor / Qoder 等 AI 客户端
+# 安装: .\.venv\Scripts\python.exe -m pip install -r backend\requirements-mcp.txt
+-r requirements.txt
+
+# MCP Python SDK：>=2.0 用 mcp.server.mcpserver.MCPServer，1.x 用 mcp.server.fastmcp.FastMCP
+# 两者接口一致，app/mcp/compat.py 做了兼容适配
+mcp>=1.9

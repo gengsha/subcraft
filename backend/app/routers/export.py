@@ -111,7 +111,7 @@ def _burn_ass_text(req: PreviewRequest, burn_track_id: str | None) -> str:
     return ass_builder.build_ass([track], req.width, req.height)
 
 
-def _write_temp_ass(req: PreviewRequest, name: str, stem: str, burn_track_id: str | None, directory: Path) -> Path:
+def write_burn_ass(req: PreviewRequest, name: str, stem: str, burn_track_id: str | None, directory: Path) -> Path:
     """把烧录用 ASS 写到临时文件。"""
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f".{_safe_name(stem)}.{name}.ass"
@@ -119,7 +119,7 @@ def _write_temp_ass(req: PreviewRequest, name: str, stem: str, burn_track_id: st
     return path
 
 
-def _fonts_dir_for(req: VideoExportRequest) -> str | None:
+def fonts_dir_for(req: PreviewRequest) -> str | None:
     """取字幕样式的字体所在目录，供 libass 在字体选择失败时兜底。"""
     for t in req.tracks:
         f = fonts.font_file(t.style.font_name)
@@ -128,34 +128,42 @@ def _fonts_dir_for(req: VideoExportRequest) -> str | None:
     return None
 
 
+def build_soft_sub_files(req: VideoExportRequest, tmp: Path, stem: str) -> list[tuple[Path, str, str]]:
+    """生成待封装的字幕文件：双语轨（默认显示）+ 各单语轨；每条 ASS 轨附一条 SRT 兼容轨。
+
+    （部分播放器不支持 ASS 软字幕样式，SRT 保证至少能看到纯文本）
+    返回 (字幕文件, 语言码, 轨道标题) 列表，首个为默认显示轨。
+    """
+    tmp.mkdir(parents=True, exist_ok=True)
+    subs: list[tuple[Path, str, str]] = []
+    if req.bilingual and len(req.tracks) >= 2:
+        bi = tmp / f".{stem}.bilingual.ass"
+        bi.write_text(
+            ass_builder.build_ass(req.tracks, req.width, req.height, True, req.primary_id),
+            encoding="utf-8-sig",
+        )
+        subs.append((bi, "zho", "双语 / Bilingual"))
+        primary = next((t for t in req.tracks if t.id == req.primary_id), req.tracks[0])
+        secondary = next(t for t in req.tracks if t.id != primary.id)
+        srt = tmp / f".{stem}.bilingual.srt"
+        srt.write_text(srt_builder.build_bilingual_srt(primary, secondary), encoding="utf-8-sig")
+        subs.append((srt, "zho", "双语 SRT (兼容)"))
+    for t in req.tracks:
+        f = tmp / f".{stem}.{t.language}.ass"
+        f.write_text(ass_builder.build_ass([t], req.width, req.height), encoding="utf-8-sig")
+        subs.append((f, t.language, t.label or t.language))
+        srt = tmp / f".{stem}.{t.language}.srt"
+        srt.write_text(srt_builder.build_srt(t), encoding="utf-8-sig")
+        subs.append((srt, t.language, f"{t.label or t.language} SRT"))
+    return subs
+
+
 def _export_video_soft(req: VideoExportRequest) -> dict:
     def job(progress_cb):
         progress_cb(0.05, "生成字幕轨...")
         tmp = Path(req.out_path).parent
         stem = _safe_name(Path(req.out_path).stem)
-        tmp.mkdir(parents=True, exist_ok=True)
-        subs: list[tuple[Path, str, str]] = []
-        # 双语轨（默认显示）+ 各单语轨；每条 ASS 轨附一条 SRT 兼容轨
-        # （部分播放器不支持 ASS 软字幕样式，SRT 保证至少能看到纯文本）
-        if req.bilingual and len(req.tracks) >= 2:
-            bi = tmp / f".{stem}.bilingual.ass"
-            bi.write_text(
-                ass_builder.build_ass(req.tracks, req.width, req.height, True, req.primary_id),
-                encoding="utf-8-sig",
-            )
-            subs.append((bi, "zho", "双语 / Bilingual"))
-            primary = next((t for t in req.tracks if t.id == req.primary_id), req.tracks[0])
-            secondary = next(t for t in req.tracks if t.id != primary.id)
-            srt = tmp / f".{stem}.bilingual.srt"
-            srt.write_text(srt_builder.build_bilingual_srt(primary, secondary), encoding="utf-8-sig")
-            subs.append((srt, "zho", "双语 SRT (兼容)"))
-        for t in req.tracks:
-            f = tmp / f".{stem}.{t.language}.ass"
-            f.write_text(ass_builder.build_ass([t], req.width, req.height), encoding="utf-8-sig")
-            subs.append((f, t.language, t.label or t.language))
-            srt = tmp / f".{stem}.{t.language}.srt"
-            srt.write_text(srt_builder.build_srt(t), encoding="utf-8-sig")
-            subs.append((srt, t.language, f"{t.label or t.language} SRT"))
+        subs = build_soft_sub_files(req, tmp, stem)
         progress_cb(0.3, "封装中（视频流直接复制，不重编码）...")
         ffmpeg_tool.mux_subtitles(req.video_path, subs, Path(req.out_path), default_index=0)
         for f, _, _ in subs:
@@ -169,9 +177,9 @@ def _export_video_soft(req: VideoExportRequest) -> dict:
 def _export_video_hard(req: VideoExportRequest) -> dict:
     def job(progress_cb):
         progress_cb(0.05, "生成字幕轨...")
-        sub = _write_temp_ass(req, "burn", Path(req.out_path).stem, req.burn_track_id,
-                              Path(req.out_path).parent)
-        fonts_dir = _fonts_dir_for(req)
+        sub = write_burn_ass(req, "burn", Path(req.out_path).stem, req.burn_track_id,
+                             Path(req.out_path).parent)
+        fonts_dir = fonts_dir_for(req)
 
         def on_encode(p: float, msg: str) -> None:
             progress_cb(0.08 + p * 0.87, msg)
@@ -192,10 +200,10 @@ def preview_frame(req: PreviewFrameRequest) -> dict:
     if not req.tracks:
         raise HTTPException(400, "没有可预览的字幕轨")
     d = work_dir()
-    sub = _write_temp_ass(req, "preview", "burn_preview", req.burn_track_id, d)
+    sub = write_burn_ass(req, "preview", "burn_preview", req.burn_track_id, d)
     jpg = d / "burn_preview.jpg"
     try:
-        ffmpeg_tool.burn_frame(req.video_path, sub, req.time, jpg, _fonts_dir_for(req))
+        ffmpeg_tool.burn_frame(req.video_path, sub, req.time, jpg, fonts_dir_for(req))
         b64 = base64.b64encode(jpg.read_bytes()).decode()
         return {"image": f"data:image/jpeg;base64,{b64}"}
     finally:
