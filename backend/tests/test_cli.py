@@ -109,3 +109,15 @@ def test_dump_and_translate_with_agent_translations(tmp_path, capsys):
     assert "第二行" in (out / "demo.zh.srt").read_text(encoding="utf-8-sig")
     tr.write_text("1. 只有一行\n", encoding="utf-8")
     assert cli.main(["translate", str(en), "-t", "zh", "--translations", str(tr), "-o", str(out), "-q"]) == 2
+
+
+def test_retime_split_merge_shift(tmp_path, capsys):
+    _, en = write_subs(tmp_path)
+    out = tmp_path / "re.srt"
+    rc = cli.main(["retime", str(en), "--split", "1:Hello|world", "--shift", "1", "-o", str(out), "-q"])
+    assert rc == 0
+    body = out.read_text(encoding="utf-8-sig")
+    assert "Hello\n" in body and "00:00:01,500 -->" in body and body.count("-->") == 3
+    rc = cli.main(["retime", str(out), "--merge", "1-2", "-o", str(out), "-q"])
+    assert rc == 0 and out.read_text(encoding="utf-8-sig").count("-->") == 2
+    assert cli.main(["retime", str(out), "--split", "9", "-q"]) == 2

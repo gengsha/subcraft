@@ -20,7 +20,7 @@ from typing import Any, Callable
 from ..config import data_dir, store
 from ..models import LANGUAGES, Segment, SubtitleStyle
 from ..routers import export as export_router
-from ..services import ffmpeg_tool, fonts, subtitle_parser, translator
+from ..services import ffmpeg_tool, fonts, subtitle_parser, timeline, translator
 from .compat import Context, Image, ToolError
 from .state import (
     DEFAULT_PAGE_SIZE,
@@ -693,13 +693,17 @@ def subcraft_edit_segments(track_id: str, edits: list[dict]) -> dict:
                index 必填（0 基，取自 subcraft_get_segments），text/start/end 只改给出的字段，时间单位秒。
                文本内可用 \\n 表示字幕换行。
 
-    返回成功条数、被忽略的非法项与轨道摘要。
+    返回成功条数、被忽略的非法项、轨道摘要；改时间导致重排时给出 reordered（旧→新序号），
+    并对改动段做合理性检查（重叠 / 过短 / 过长 / 阅读速度过快），问题列在 warnings。
+    结构性调整用专门工具：subcraft_split_segment 拆分、subcraft_merge_segments 合并、
+    subcraft_shift_track 整轨平移、subcraft_snap_to_cuts 避免字幕跨镜头。
     """
     st = _track(track_id)
     segs = st.track.segments
     if not isinstance(edits, list) or not edits:
         _fail("edits 不能为空，示例: [{'index': 0, 'text': '你好'}]")
     applied, invalid = 0, []
+    touched: list[tuple[int, Segment]] = []
     for raw in edits:
         if not isinstance(raw, dict) or "index" not in raw:
             invalid.append({"edit": raw, "reason": "缺少 index"})
@@ -721,10 +725,198 @@ def subcraft_edit_segments(track_id: str, edits: list[dict]) -> dict:
         if "text" in raw and raw["text"] is not None:
             seg.text = str(raw["text"]).replace("\\n", "\n").strip()
         seg.start, seg.end = round(start, 3), round(end, 3)
+        touched.append((idx, seg))
         applied += 1
     segs.sort(key=lambda s: (s.start, s.end))
-    return {"track_id": track_id, "applied": applied, "invalid": invalid[:20],
-            "invalid_count": len(invalid), "track": st.summary(), "note": "已按时间重新排序"}
+    pos = {id(s): i for i, s in enumerate(segs)}
+    moved = {str(old): pos[id(seg)] for old, seg in touched if pos[id(seg)] != old}
+    out = {"track_id": track_id, "applied": applied, "invalid": invalid[:20],
+           "invalid_count": len(invalid), "track": st.summary()}
+    if moved:
+        out["reordered"] = moved
+        out["note"] = "部分段改时间后按时间重排，reordered 为 旧序号→新序号；后续编辑请用新序号"
+    warnings = timeline.check(segs, indexes={pos[id(seg)] for _, seg in touched})
+    if warnings:
+        out["warnings"] = warnings[:20]
+        out["hint"] = "overlap 可用 subcraft_check_timing(fix_overlaps=true) 一键修；too_fast 可考虑精简文字或延长时长"
+    return out
+
+
+def _timeline_result(st, extra: dict[str, Any], around: list[int] | None = None) -> dict:
+    segs = st.track.segments
+    out = {"track_id": st.id, **extra, "segment_count": len(segs)}
+    if around:
+        lo, hi = max(min(around) - 1, 0), min(max(around) + 2, len(segs))
+        out["segments"] = [_seg_view(i, segs[i]) for i in range(lo, hi)]
+    return out
+
+
+def _paired(st, _op=None) -> list:
+    """对与 st 逐段对齐的翻译轨/源轨做同样的结构操作，保持双语对齐。返回同步了的轨道 id。"""
+    synced = []
+    n_before = len(st.track.segments)
+    for other in SESSION.all():
+        if other.id == st.id or len(other.track.segments) != n_before:
+            continue
+        if all(abs(a.start - b.start) < 1e-3 and abs(a.end - b.end) < 1e-3
+               for a, b in zip(other.track.segments, st.track.segments)):
+            synced.append(other)
+    return synced
+
+
+@tool
+def subcraft_split_segment(track_id: str, index: int, text: str | None = None,
+                           at_time: float | None = None, sync_aligned: bool = True) -> dict:
+    """把一段字幕拆成两段（如长句跨了镜头切点、或一句太长读不完）。
+
+    Args:
+        track_id: 轨道 id
+        index: 要拆的段序号（0 基）
+        text: 断点写法 "前半句|后半句"（推荐，也可借机改字）；或只给前半句（须是原文前缀）
+        at_time: 拆分时间点（绝对秒，须在该段内）；省略时按两半文字长度比例推算。
+                 常见做法：先 subcraft_snap_to_cuts(apply=false) 拿到切点，再用切点做 at_time
+        sync_aligned: 与本轨逐段对齐的其他轨（如译文轨）在同一时间点同步拆分，文字按比例切开（之后可再校对）
+
+    返回拆分后该段附近的字幕，后续段序号整体 +1。
+    """
+    st = _track(track_id)
+    others = _paired(st, None) if sync_aligned else []
+    try:
+        new = timeline.split(st.track.segments, int(index), at_time, text)
+    except ValueError as e:
+        _fail(str(e))
+    cut = new[int(index)].end
+    synced = []
+    for o in others:
+        try:
+            o.track.segments = timeline.split(o.track.segments, int(index), cut)
+            synced.append(o.id)
+        except ValueError:
+            pass
+    st.track.segments = new
+    return _timeline_result(st, {"split_at": cut, "synced_tracks": synced}, [int(index), int(index) + 1])
+
+
+@tool
+def subcraft_merge_segments(track_id: str, first: int, last: int, sync_aligned: bool = True) -> dict:
+    """把连续的几段合并为一段（如一句话被切得太碎、某段只有一两个字闪一下）。
+
+    Args:
+        track_id: 轨道 id
+        first: 起始段序号（0 基）
+        last: 结束段序号（含，须大于 first）
+        sync_aligned: 与本轨逐段对齐的其他轨同步合并
+    """
+    st = _track(track_id)
+    others = _paired(st, None) if sync_aligned else []
+    try:
+        new = timeline.merge(st.track.segments, int(first), int(last))
+    except ValueError as e:
+        _fail(str(e))
+    for o in others:
+        o.track.segments = timeline.merge(o.track.segments, int(first), int(last))
+    st.track.segments = new
+    out = _timeline_result(st, {"merged": int(last) - int(first) + 1, "synced_tracks": [o.id for o in others]},
+                           [int(first)])
+    warn = timeline.check(new, indexes={int(first)})
+    if warn:
+        out["warnings"] = warn
+    return out
+
+
+@tool
+def subcraft_shift_track(track_id: str, offset: float = 0.0, scale: float = 1.0,
+                         first: int = 0, last: int | None = None, from_time: float | None = None,
+                         sync_aligned: bool = True) -> dict:
+    """整轨或局部平移/缩放时间轴：新时间 = 原时间 × scale + offset。
+
+    Args:
+        track_id: 轨道 id
+        offset: 平移秒数，正数延后、负数提前（如字幕整体早了 0.3 秒 → offset=0.3）
+        scale: 缩放系数，用于帧率不符导致越往后越偏（如 25→23.976 用 25/23.976），默认 1
+        first/last: 只处理这个序号区间（含）
+        from_time: 只处理开始时间 >= 该秒数的段（如视频中间插了片头/广告）
+        sync_aligned: 与本轨逐段对齐的其他轨同步平移
+    """
+    st = _track(track_id)
+    others = _paired(st, None) if sync_aligned else []
+    try:
+        new, n = timeline.shift(st.track.segments, float(offset), float(scale), int(first), last, from_time)
+    except ValueError as e:
+        _fail(str(e))
+    for o in others:
+        o.track.segments, _ = timeline.shift(o.track.segments, float(offset), float(scale), int(first), last, from_time)
+    st.track.segments = new
+    out = _timeline_result(st, {"shifted": n, "offset": offset, "scale": scale,
+                                "synced_tracks": [o.id for o in others]})
+    warn = [w for w in timeline.check(new) if w["type"] == "overlap"]
+    if warn:
+        out["warnings"] = warn[:20]
+    return out
+
+
+@tool
+def subcraft_snap_to_cuts(track_id: str, video_path: str | None = None, threshold: float = 0.3,
+                          tolerance: float = 0.5, apply: bool = True, sync_aligned: bool = True) -> dict:
+    """检测视频镜头切点，让字幕不跨镜头（解决「一句话最后一个字拖到下一个镜头」的违和感）。
+
+    Args:
+        track_id: 轨道 id
+        video_path: 视频路径；留空用轨道关联的视频
+        threshold: 场景检测灵敏度 0.1~0.6，越小切点越多（默认 0.3）
+        tolerance: 结束点越过切点 / 开始点早于切点在这个秒数内就贴齐到切点（默认 0.5）
+        apply: False 时只返回切点与将要做的修改，不落地
+        sync_aligned: 与本轨逐段对齐的其他轨同步调整
+
+    返回 cuts（全部切点）、changes（已/将贴齐的段）、need_split（跨切点太多、需要
+    subcraft_split_segment(at_time=切点) 拆开的段）。
+    """
+    st = _track(track_id)
+    video = video_path or st.video_path
+    if not video:
+        _fail("没有关联视频：请传 video_path")
+    video = str(_existing(video, "媒体文件"))
+    ffmpeg, _ = ffmpeg_tool.ensure_ffmpeg()
+    try:
+        cuts = timeline.detect_cuts(ffmpeg, video, float(threshold))
+    except RuntimeError as e:
+        _fail(str(e))
+    new, changes = timeline.snap_to_cuts(st.track.segments, cuts, float(tolerance))
+    synced = []
+    if apply and changes:
+        for o in (_paired(st, None) if sync_aligned else []):
+            o.track.segments, _ = timeline.snap_to_cuts(o.track.segments, cuts, float(tolerance))
+            synced.append(o.id)
+        st.track.segments = new
+    need_split = timeline.crossing_cuts(new, cuts)
+    return {"track_id": st.id, "cuts": cuts, "applied": bool(apply and changes),
+            "changes": changes[:50], "change_count": len(changes), "synced_tracks": synced,
+            "need_split": need_split[:30],
+            "hint": "need_split 中的段可用 subcraft_split_segment(index, at_time=切点, text='前|后') 拆开" if need_split else ""}
+
+
+@tool
+def subcraft_check_timing(track_id: str, max_cps: float = timeline.DEFAULT_MAX_CPS,
+                          max_duration: float = timeline.DEFAULT_MAX_DURATION,
+                          fix_overlaps: bool = False) -> dict:
+    """检查整条轨的时间轴：重叠、过短（<0.3s）、过长、阅读速度过快（字/秒）。
+
+    Args:
+        track_id: 轨道 id
+        max_cps: 每秒字符单位上限（汉字计 1、字母计 0.5）；0=自动（中日韩 9，拉丁文字 10 即 20 字母/秒）
+        max_duration: 单条最长秒数，默认 7
+        fix_overlaps: True 时把重叠段的结束时间截到下一段开始
+    """
+    st = _track(track_id)
+    fixed = 0
+    if fix_overlaps:
+        st.track.segments, fixed = timeline.fix_overlaps(st.track.segments)
+    issues = timeline.check(st.track.segments, float(max_cps), float(max_duration))
+    counts: dict[str, int] = {}
+    for it in issues:
+        counts[it["type"]] = counts.get(it["type"], 0) + 1
+    return {"track_id": st.id, "segment_count": len(st.track.segments), "fixed_overlaps": fixed,
+            "issue_counts": counts, "issues": issues[:50]}
 
 
 @tool
