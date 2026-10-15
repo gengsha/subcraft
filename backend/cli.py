@@ -12,6 +12,8 @@
   python backend/cli.py translate in.en.srt -t zh -o out              # 只翻译（附带双语导出）
   python backend/cli.py export -s zh.srt -s en.srt --media v.mp4 --video hard -o out
   python backend/cli.py preview -s zh.srt -s en.srt --media v.mp4 --time 12.5 -o f.jpg
+  python backend/cli.py batch ./课程 -t zh -r -o ./out --video hard   # 整个文件夹批量识别+翻译+烧录
+  python backend/cli.py batch ./subs --subs -t zh                      # 批量翻译已有字幕
 
 约定：进度走 stderr、结果走 stdout；`--json` 输出机器可读 JSON；预期内错误退出码 2。
 """
@@ -617,6 +619,62 @@ def cmd_preview(args: argparse.Namespace) -> Result:
             [f"预览帧已保存: {out}（{len(raw) / 1024:.0f}KB, t={args.time}s）"])
 
 
+def cmd_batch(args: argparse.Namespace) -> Result:
+    """整个文件夹批量处理：识别 / 翻译已有字幕 → 可选贴齐切点 → 导出字幕 / 成片。"""
+    from app.services import batch
+
+    folder = _existing(args.folder, "文件夹")
+    opts = batch.BatchOptions(
+        mode="subs" if args.subs else "media",
+        target=_check_lang(args.target, "--target") if args.target else None,
+        out_dir=args.out, recursive=args.recursive, pattern=args.pattern,
+        engine=args.engine, whisper_model=args.model, source_lang=_norm_lang(args.lang),
+        provider=args.provider, provider_id=args.provider_id, glossary=_read_glossary(args),
+        primary_target=args.primary_target, bilingual=not args.no_bilingual,
+        formats=args.formats, video=args.video, snap_cuts=args.snap_cuts, split_cuts=args.split_cuts,
+        cut_threshold=args.cut_threshold, tolerance=args.tolerance,
+        skip_existing=not args.force, stop_on_error=args.stop_on_error, limit=args.limit,
+    )
+    cb = Progress(args.quiet)
+    icon = {"done": "✓", "skipped": "-", "failed": "✗", "pending": "·"}
+
+    def on_item(rec: dict[str, Any]) -> None:
+        if args.quiet or args.json:
+            return
+        cb.done()
+        tail = {"done": f"{rec.get('segments', 0)} 段 / {rec.get('elapsed_sec', 0)}s",
+                "skipped": "已存在，跳过（--force 重做）", "pending": "待处理",
+                "failed": rec.get("error", "")}[rec["status"]]
+        print(f"{icon[rec['status']]} [{rec['index']}/{report_total[0]}] {rec['relative']}  {tail}",
+              file=sys.stderr, flush=True)
+
+    report_total = [0]
+    try:
+        items = batch.find_inputs(folder, batch.validate(opts))
+        report_total[0] = len(items)
+        report = batch.run_batch(folder, opts, cb, on_item, dry_run=args.dry_run)
+    except batch.BatchError as e:
+        _fail(str(e))
+    cb.done()
+    if not report["total"]:
+        _fail(report.get("message", "没有找到可处理的文件"))
+    lines = [f"批量{'预览' if args.dry_run else '完成'}: 共 {report['total']} 个，成功 {report['done']}，"
+             f"跳过 {report['skipped']}，失败 {report['failed']}"
+             + (f"，用时 {report['elapsed_sec']}s" if not args.dry_run else "")]
+    for r in report["items"]:
+        if r["status"] == "failed":
+            lines.append(f"  ✗ {r['relative']}: {r['error']}")
+        elif args.dry_run:
+            lines.append(f"  {icon[r['status']]} {r['relative']} → {r['out_dir']}")
+    if report.get("report_path"):
+        lines.append(f"报告: {report['report_path']}")
+    if report["failed"] and not args.dry_run:
+        lines.append("失败的文件修好后直接重跑同一条命令即可，已完成的会自动跳过。")
+    for r in report["items"]:
+        r.pop("trace", None)
+    return report, lines
+
+
 # ---------------------------------------------------------------- 参数解析
 
 def _common_parser() -> argparse.ArgumentParser:
@@ -746,6 +804,35 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--burn", type=int, help="只烧第 N 条轨（0 基，默认双语/主轨）")
     p.add_argument("--no-bilingual", action="store_true", help="只烧主轨")
     p.set_defaults(func=cmd_preview)
+
+    p = sub.add_parser("batch", help="批量处理整个文件夹：识别 → 翻译 → 导出（课程 / 剧集）", parents=[common])
+    p.add_argument("folder", help="要处理的文件夹")
+    p.add_argument("-t", "--target", help="目标语言码（留空只识别；--subs 模式必填）")
+    p.add_argument("--subs", action="store_true",
+                   help="处理文件夹里已有的字幕文件（只翻译+导出），同名视频自动关联")
+    p.add_argument("-r", "--recursive", action="store_true", help="递归扫描子目录（输出保留子目录结构）")
+    p.add_argument("--pattern", help="只处理匹配的文件名，如 \"*.mp4\" 或 \"EP*\"")
+    p.add_argument("--engine", default="local", choices=["local", "openai"])
+    p.add_argument("--model", help="Whisper 模型名")
+    p.add_argument("--lang", help="源语言码（留空自动检测 / 按文件名推断）")
+    p.add_argument("--provider", default="ai", choices=["ai", "deepl"])
+    p.add_argument("--provider-id", help="指定已配置厂商 id")
+    p.add_argument("--primary-target", action="store_true", help="双语以译文为主行（默认源语言为主行）")
+    p.add_argument("--glossary", help="术语表文件（每行「原文=译文」，留空用设置里的术语表）")
+    p.add_argument("--snap-cuts", action="store_true", help="导出前贴齐镜头切点（需要视频）")
+    p.add_argument("--split-cuts", action="store_true",
+                   help="贴齐后仍跨镜头的字幕按切点自动拆开（隐含 --snap-cuts；在翻译前做，译文同步）")
+    p.add_argument("--cut-threshold", type=float, default=0.3, help="场景检测灵敏度（越小切点越多）")
+    p.add_argument("--tolerance", type=float, default=0.5, help="离切点多少秒内贴齐")
+    p.add_argument("-o", "--out", help="输出根目录（默认写回各文件所在目录）")
+    p.add_argument("--formats", default="srt,ass", help="字幕格式逗号组合: srt,ass（默认两者）")
+    p.add_argument("--no-bilingual", action="store_true", help="不导出双语合并字幕")
+    p.add_argument("--video", choices=["soft", "hard"], help="每集额外出成片：soft=封装 MKV / hard=烧录 MP4")
+    p.add_argument("--force", action="store_true", help="不跳过已完成的文件，全部重做")
+    p.add_argument("--stop-on-error", action="store_true", help="遇到失败立即停止（默认记录后继续）")
+    p.add_argument("--limit", type=int, default=0, help="只处理前 N 个（先试跑）")
+    p.add_argument("--dry-run", action="store_true", help="只列出将处理 / 跳过的文件，不执行")
+    p.set_defaults(func=cmd_batch)
 
     return parser
 
