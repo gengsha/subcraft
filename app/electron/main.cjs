@@ -4,9 +4,12 @@ const { spawn } = require('child_process')
 const net = require('net')
 const path = require('path')
 const fs = require('fs')
+const crypto = require('crypto')
 
 let backendProc = null
 let backendPort = 47653
+// 每次启动随机生成的访问令牌：后端经环境变量读取，渲染进程经启动参数读取
+const backendToken = crypto.randomBytes(24).toString('hex')
 
 function findFreePort() {
   return new Promise((resolve) => {
@@ -33,7 +36,7 @@ async function waitForBackend(port, timeoutMs = 60000) {
 async function startBackend() {
   backendPort = await findFreePort()
   const root = path.join(__dirname, '..', '..')
-  let cmd, args, env = { ...process.env }
+  let cmd, args, env = { ...process.env, SUBCRAFT_TOKEN: backendToken }
   if (app.isPackaged) {
     // 生产：优先用随包的 PyInstaller 后端；Linux 无二进制时回退到系统 python3 + 随包源码
     const res = process.resourcesPath
@@ -78,7 +81,7 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
-      additionalArguments: [`--subcraft-port=${backendPort}`],
+      additionalArguments: [`--subcraft-port=${backendPort}`, `--subcraft-token=${backendToken}`],
     },
   })
   const devUrl = process.env.ELECTRON_RENDERER_URL

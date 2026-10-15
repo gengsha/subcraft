@@ -336,11 +336,73 @@ def _transcribe(args: argparse.Namespace, media: Path, cb: ProgressCb,
     return track, meta
 
 
+def _read_glossary(args: argparse.Namespace) -> str | None:
+    path = getattr(args, "glossary", None)
+    if not path:
+        return None
+    p = Path(path)
+    if not p.is_file():
+        _fail(f"术语表文件不存在: {path}")
+    return p.read_text(encoding="utf-8-sig")
+
+
+def _read_translations(path_str: str, src: list[Segment]) -> list[Segment]:
+    """读取外部（通常是调用 CLI 的 AI 自己）翻译好的译文文件，按序号对齐到源段。
+
+    格式与 `dump` 输出一致：每行「序号. 译文」（1 基）；也接受不带序号的纯文本，逐行对应。
+    """
+    path = _existing(path_str, "译文文件")
+    lines = [l.rstrip("\r") for l in path.read_text(encoding="utf-8-sig").splitlines()]
+    numbered = [re.match(r"^\s*(\d+)[.、:：)]\s?(.*)$", l) for l in lines if l.strip()]
+    texts: dict[int, str] = {}
+    if numbered and all(numbered):
+        for m in numbered:
+            texts[int(m.group(1)) - 1] = m.group(2).strip()
+    else:
+        plain = [l for l in lines if l.strip()]
+        if len(plain) != len(src):
+            _fail(f"译文行数 {len(plain)} 与源字幕段数 {len(src)} 不一致；建议用 `dump` 输出的「序号. 原文」格式")
+        texts = dict(enumerate(t.strip() for t in plain))
+    missing = [i + 1 for i, s in enumerate(src) if s.text.strip() and not texts.get(i)]
+    if missing:
+        _fail(f"译文缺少第 {', '.join(map(str, missing[:20]))}{' 等' if len(missing) > 20 else ''} 段")
+    return [Segment(start=s.start, end=s.end, text=texts.get(i, "")) for i, s in enumerate(src)]
+
+
+def _strip_lang_suffix(stem: str) -> str:
+    """sample.en → sample，避免翻译导出成 sample.en.zh.srt 这类重复后缀。"""
+    head, _, tail = stem.rpartition(".")
+    return head if head and tail in LANGUAGES else stem
+
+
+def cmd_dump(args: argparse.Namespace) -> Result:
+    """把字幕按「序号. 文本」逐行输出，便于 AI 读取后自行翻译，再用 translate --translations 写回。"""
+    path = _existing(args.input, "字幕文件")
+    try:
+        segments = subtitle_parser.parse_file(path)
+    except ValueError as e:
+        _fail(str(e))
+    rows = [f"{i}. {s.text.replace(chr(10), ' ').strip()}" for i, s in enumerate(segments, 1)]
+    if args.out:
+        Path(args.out).expanduser().write_text("\n".join(rows) + "\n", encoding="utf-8")
+    result = {"input": str(path), "segment_count": len(segments),
+              "segments": [{"n": i, "start": s.start, "end": s.end, "text": s.text}
+                           for i, s in enumerate(segments, 1)]}
+    return result, rows if not args.out else [f"已写出 {len(rows)} 行: {args.out}"]
+
+
 def _translate(args: argparse.Namespace, src: SubtitleTrack, cb: ProgressCb,
                lo: float, hi: float) -> SubtitleTrack:
     from app.mcp.state import translation_style
 
     target = _check_lang(args.target, "--target")
+    if getattr(args, "translations", None):
+        translated = _read_translations(args.translations, src.segments)
+        cb(hi, "[翻译] 已读取译文文件")
+        return SubtitleTrack(
+            id=_next_id(), language=target, label=LANGUAGES.get(target, target),
+            role="translation", segments=translated, style=translation_style(src.style),
+        )
     translated = translator.translate_segments(
         src.segments, src.language if src.language not in ("", "und") else "auto", target,
         "deepl" if str(args.provider).lower() == "deepl" else "openai", args.provider_id,
@@ -348,6 +410,7 @@ def _translate(args: argparse.Namespace, src: SubtitleTrack, cb: ProgressCb,
         batch_size=int(store.get("translate_batch_size", 25) or 25),
         concurrency=int(store.get("translate_concurrency", 4) or 4),
         progress_cb=_scaled(cb, lo, hi, "[翻译] "),
+        glossary=_read_glossary(args),
     )
     if len(translated) != len(src.segments):
         _fail(f"翻译段数不对齐: 源 {len(src.segments)} / 译文 {len(translated)}")
@@ -411,7 +474,7 @@ def cmd_translate(args: argparse.Namespace) -> Result:
     extra = {"source_track": {"language": src.language, "segments": len(src.segments)},
              "target": trn.language, "input": str(src_path)}
     result, lines = _finish_export(args, tracks, primary.id, not args.no_bilingual,
-                                   media, args.base or src_path.stem, cb, extra)
+                                   media, args.base or _strip_lang_suffix(src_path.stem), cb, extra)
     lines.insert(0, f"翻译完成: {src.language} → {trn.language} / {len(trn.segments)} 段"
                     f"（双语主行: {primary.language}）")
     return result, lines
@@ -558,8 +621,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", help="覆盖厂商默认模型名")
     p.add_argument("--media", help="关联视频（用于 ASS 画布尺寸与封装）")
     p.add_argument("--primary-target", action="store_true", help="双语以译文为主行（默认源语言为主行）")
+    p.add_argument("--glossary", help="术语表文件（每行「原文=译文」，留空用设置里的术语表）")
+    p.add_argument("--translations", help="直接使用已翻译好的译文文件（每行「序号. 译文」，与 dump 对应），"
+                                          "不调用任何翻译 API；适合由调用 CLI 的 AI 自己翻译")
     _export_options(p)
     p.set_defaults(func=cmd_translate)
+
+    p = sub.add_parser("dump", help="按「序号. 文本」列出字幕，供 AI 自行翻译后用 translate --translations 写回",
+                       parents=[common])
+    p.add_argument("input", help="字幕文件路径")
+    p.add_argument("-o", "--out", help="写到文件（默认打印到终端）")
+    p.set_defaults(func=cmd_dump)
 
     p = sub.add_parser("gen", help="一条龙：识别 → 可选翻译 → 导出字幕 / 封装视频", parents=[common])
     p.add_argument("media", help="媒体文件路径")
@@ -570,6 +642,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--provider", default="ai", choices=["ai", "deepl"])
     p.add_argument("--provider-id", help="指定已配置厂商 id")
     p.add_argument("--primary-target", action="store_true", help="双语以译文为主行（默认源语言为主行）")
+    p.add_argument("--glossary", help="术语表文件（每行「原文=译文」，留空用设置里的术语表）")
     _export_options(p)
     p.set_defaults(func=cmd_gen)
 

@@ -111,6 +111,21 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
             <option value="cuda">强制 GPU (CUDA)</option>
             <option value="cpu">强制 CPU</option>
           </select></div>
+        <div className="row"><label>单条长度上限</label>
+          <input type="number" min={0} step={1} value={cfg.subtitle_max_units ?? 21}
+            onChange={(e) => set('subtitle_max_units', Number(e.target.value))} />
+          <span className="hint" style={{ marginLeft: 8 }}>汉字计 1、英文字符计 0.5；0 = 不切分</span></div>
+        <div className="row"><label>单条时长上限(秒)</label>
+          <input type="number" min={1} step={0.5} value={cfg.subtitle_max_duration ?? 7}
+            onChange={(e) => set('subtitle_max_duration', Number(e.target.value))} /></div>
+
+        {/* ── 翻译术语表 ── */}
+        <div className="section-head"><span>翻译术语表</span></div>
+        <textarea className="glossary" rows={5} value={cfg.translation_glossary ?? ''}
+          onChange={(e) => set('translation_glossary', e.target.value)}
+          placeholder={'每行一条：原文=译文\nOpenAI=OpenAI\nTony Stark=托尼·斯塔克'}
+          style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }} />
+        <div className="hint">AI 翻译时会把出现在当前批次里的术语一并发给模型，保证人名、术语前后一致。</div>
 
         <div className="hint">API Key 仅保存在本机配置文件中，不会上传。</div>
         {saved && <div className="hint" style={{ color: 'var(--accent2)' }}>已保存 ✓</div>}

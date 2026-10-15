@@ -35,12 +35,19 @@ def _candidates() -> list[tuple[Path, Path]]:
     if custom:
         p = Path(custom)
         cands.append((p, p.with_name("ffprobe.exe" if p.suffix == ".exe" else "ffprobe")))
+    exe = ".exe" if sys.platform == "win32" else ""
     b = _bin_dir()
-    cands.append((b / "ffmpeg.exe", b / "ffprobe.exe"))
+    cands.append((b / f"ffmpeg{exe}", b / f"ffprobe{exe}"))
     sys_ff = shutil.which("ffmpeg")
     if sys_ff:
         sp = Path(sys_ff)
-        cands.append((sp, sp.with_name("ffprobe.exe")))
+        # 与 ffmpeg 同名后缀（Linux/macOS 无 .exe）；同目录找不到再查 PATH
+        probe = sp.with_name("ffprobe" + sp.suffix)
+        if not probe.exists():
+            alt = shutil.which("ffprobe")
+            if alt:
+                probe = Path(alt)
+        cands.append((sp, probe))
     return cands
 
 

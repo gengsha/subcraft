@@ -68,6 +68,9 @@ export interface AppConfig {
   whisper_device: string
   translate_batch_size: number
   translate_concurrency: number
+  translation_glossary?: string
+  subtitle_max_units?: number
+  subtitle_max_duration?: number
   [key: string]: unknown
 }
 
@@ -124,6 +127,7 @@ declare global {
     subcraft: {
       apiBase: string
       wsBase: string
+      token: string
       openVideoDialog: () => Promise<string | null>
       selectDirDialog: () => Promise<string | null>
       saveFileDialog: (defaultName: string, ext: string) => Promise<string | null>

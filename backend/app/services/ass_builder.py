@@ -39,7 +39,7 @@ def _escape(text: str) -> str:
 
 
 def _pos_prefix(st: SubtitleStyle) -> str:
-    """中心点定位前缀：pos_x/pos_y 设置时用 \an5\pos 让锚点为字幕块中心。"""
+    r"""中心点定位前缀：pos_x/pos_y 设置时用 \an5\pos 让锚点为字幕块中心。"""
     if st.pos_x is None or st.pos_y is None:
         return ""
     return f"{{\\an5\\pos({st.pos_x:.0f},{st.pos_y:.0f})}}"
