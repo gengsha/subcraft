@@ -48,6 +48,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # 翻译批处理
     "translate_batch_size": 25,
     "translate_concurrency": 4,
+    # 翻译术语表：每行「原文=译文」，保证人名、术语前后一致
+    "translation_glossary": "",
+    # 识别断句：单条字幕长度上限（CJK 字计 1、其他字符计 0.5；0 = 不切分）与时长上限（秒）
+    "subtitle_max_units": 21,
+    "subtitle_max_duration": 7.0,
 }
 
 
