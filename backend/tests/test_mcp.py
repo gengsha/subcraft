@@ -386,3 +386,23 @@ def test_add_translation_by_agent(tmp_path):
     assert b[1]["text"] == "Second"
     with pytest.raises(ToolError):
         tools.subcraft_add_translation(sid, "xx", ["a"])
+
+
+def test_timeline_tools_keep_bilingual_aligned(tmp_path):
+    src = tools.subcraft_load_subtitle_file(str(_make_srt(tmp_path)))
+    sid = src["track_id"]
+    tid = tools.subcraft_add_translation(sid, "en", ["Hello, world", "The second one"])["track_id"]
+    out = tools.subcraft_split_segment(sid, 0, text="你好，|世界")
+    assert tid in out["synced_tracks"]
+    a = tools.subcraft_get_segments(sid)["segments"]
+    b = tools.subcraft_get_segments(tid)["segments"]
+    assert len(a) == len(b) == 3 and [(x["start"], x["end"]) for x in a] == [(x["start"], x["end"]) for x in b]
+    tools.subcraft_merge_segments(sid, 0, 1)
+    assert len(tools.subcraft_get_segments(tid)["segments"]) == 2
+    shifted = tools.subcraft_shift_track(sid, offset=0.5)
+    assert shifted["shifted"] == 2 and tid in shifted["synced_tracks"]
+    assert tools.subcraft_get_segments(tid)["segments"][0]["start"] == tools.subcraft_get_segments(sid)["segments"][0]["start"]
+    edited = tools.subcraft_edit_segments(sid, [{"index": 1, "start": 0.0}])
+    assert edited["reordered"] == {"1": 0} and any(w["type"] == "overlap" for w in edited["warnings"])
+    fixed = tools.subcraft_check_timing(sid, fix_overlaps=True)
+    assert fixed["fixed_overlaps"] >= 1 and "overlap" not in fixed["issue_counts"]
