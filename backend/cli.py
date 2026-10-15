@@ -375,6 +375,71 @@ def _strip_lang_suffix(stem: str) -> str:
     return head if head and tail in LANGUAGES else stem
 
 
+def cmd_retime(args: argparse.Namespace) -> Result:
+    """调整字幕文件时间轴：拆分 / 合并 / 平移缩放 / 吸附镜头切点 / 修重叠 / 检查。"""
+    from app.services import srt_builder, timeline
+
+    path = _existing(args.input, "字幕文件")
+    try:
+        segs = subtitle_parser.parse_file(path)
+    except ValueError as e:
+        _fail(str(e))
+    log: list[str] = []
+    try:
+        # 先做结构操作（序号以 dump 的 1 基序号为准），从后往前做，避免前面的拆合影响后面的序号
+        ops = [("merge", m) for m in args.merge or []] + [("split", x) for x in args.split or []]
+
+        def first_index(op):
+            return int(re.match(r"\d+", op[1]).group())
+        for kind, spec in sorted(ops, key=first_index, reverse=True):
+            if kind == "merge":
+                m = re.fullmatch(r"(\d+)-(\d+)", spec.strip())
+                if not m:
+                    _fail(f"--merge 格式应为 N-M（1 基）: {spec}")
+                segs = timeline.merge(segs, int(m.group(1)) - 1, int(m.group(2)) - 1)
+                log.append(f"合并 {spec}")
+            else:
+                m = re.fullmatch(r"(\d+)(?:@([\d.]+))?(?::(.+))?", spec.strip(), re.S)
+                if not m:
+                    _fail(f"--split 格式应为 N、N@秒、N:前半|后半 或 N@秒:前半|后半: {spec}")
+                segs = timeline.split(segs, int(m.group(1)) - 1,
+                                      float(m.group(2)) if m.group(2) else None, m.group(3))
+                log.append(f"拆分第 {m.group(1)} 段 @ {segs[int(m.group(1)) - 1].end}s")
+        if args.shift or args.scale != 1.0:
+            segs, n = timeline.shift(segs, args.shift, args.scale, from_time=args.from_time)
+            log.append(f"平移 {args.shift:+}s 缩放 ×{args.scale}：{n} 段")
+        cuts: list[float] = []
+        if args.snap_cuts:
+            if not args.media:
+                _fail("--snap-cuts 需要 --media 指定视频")
+            ffmpeg, _ = ffmpeg_tool.ensure_ffmpeg()
+            cuts = timeline.detect_cuts(ffmpeg, str(_existing(args.media, "媒体文件")), args.cut_threshold)
+            segs, changes = timeline.snap_to_cuts(segs, cuts, args.tolerance)
+            log.append(f"检测到 {len(cuts)} 个镜头切点，贴齐 {len(changes)} 段")
+            for c in changes:
+                log.append(f"  第 {c['index'] + 1} 段 {c['before']} → {c['after']}")
+            for x in timeline.crossing_cuts(segs, cuts):
+                log.append(f"  ! 第 {x['index'] + 1} 段跨切点 {x['cuts']}，可用 --split {x['index'] + 1}@{x['cuts'][0]}")
+        if args.fix_overlaps:
+            segs, fixed = timeline.fix_overlaps(segs)
+            log.append(f"修复重叠 {fixed} 处")
+    except ValueError as e:
+        _fail(str(e))
+    issues = timeline.check(segs, args.max_cps, args.max_duration)
+    for it in issues[:30]:
+        log.append(f"  ? 第 {it['index'] + 1} 段 {it['type']}: {it['detail']}")
+    out_path = None
+    if not args.check:
+        out_path = Path(args.out).expanduser() if args.out else path.with_name(path.stem + ".retimed.srt")
+        lang = _guess_language(path) or "und"
+        track = SubtitleTrack(id="t1", language=lang, label=lang, role="source", segments=segs)
+        out_path.write_text(srt_builder.build_srt(track), encoding="utf-8-sig")
+        log.append(f"已写出 {len(segs)} 段: {out_path}")
+    result = {"input": str(path), "output": str(out_path) if out_path else None,
+              "segment_count": len(segs), "cuts": cuts, "issues": issues, "log": log}
+    return result, log or ["无改动"]
+
+
 def cmd_dump(args: argparse.Namespace) -> Result:
     """把字幕按「序号. 文本」逐行输出，便于 AI 读取后自行翻译，再用 translate --translations 写回。"""
     path = _existing(args.input, "字幕文件")
@@ -626,6 +691,25 @@ def build_parser() -> argparse.ArgumentParser:
                                           "不调用任何翻译 API；适合由调用 CLI 的 AI 自己翻译")
     _export_options(p)
     p.set_defaults(func=cmd_translate)
+
+    p = sub.add_parser("retime", help="调整时间轴：拆分/合并/平移/吸附镜头切点/修重叠/检查", parents=[common])
+    p.add_argument("input", help="字幕文件路径")
+    p.add_argument("--split", action="append", metavar="SPEC",
+                   help="拆分（1 基序号，可重复）：N / N@秒 / N:前半|后半 / N@秒:前半|后半")
+    p.add_argument("--merge", action="append", metavar="N-M", help="合并第 N 到 M 段（1 基，可重复）")
+    p.add_argument("--shift", type=float, default=0.0, help="整体平移秒数（正数延后）")
+    p.add_argument("--scale", type=float, default=1.0, help="时间缩放系数（帧率不符时用，如 25/23.976）")
+    p.add_argument("--from-time", type=float, help="平移/缩放只作用于开始时间 >= 该秒数的段")
+    p.add_argument("--snap-cuts", action="store_true", help="检测镜头切点，让字幕不跨镜头（需 --media）")
+    p.add_argument("--media", help="视频路径（--snap-cuts 用）")
+    p.add_argument("--cut-threshold", type=float, default=0.3, help="场景检测灵敏度（越小切点越多）")
+    p.add_argument("--tolerance", type=float, default=0.5, help="离切点多少秒内贴齐")
+    p.add_argument("--fix-overlaps", action="store_true", help="把重叠段的结束时间截到下一段开始")
+    p.add_argument("--max-cps", type=float, default=0.0, help="阅读速度上限（单位/秒，汉字计 1、字母计 0.5；0=自动）")
+    p.add_argument("--max-duration", type=float, default=7.0, help="单条时长检查上限（秒）")
+    p.add_argument("--check", action="store_true", help="只检查并报告，不写文件")
+    p.add_argument("-o", "--out", help="输出 .srt 路径（默认 <原名>.retimed.srt）")
+    p.set_defaults(func=cmd_retime)
 
     p = sub.add_parser("dump", help="按「序号. 文本」列出字幕，供 AI 自行翻译后用 translate --translations 写回",
                        parents=[common])
