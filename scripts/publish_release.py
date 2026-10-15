@@ -47,6 +47,7 @@ BODY = """# SubCraft v0.1.1
 | **Linux x64** | `SubCraft-0.1.1-x64-linux.tar.gz` | Linux 独立安装包（解压后依赖系统 python3 与 ffmpeg） |
 
 #### v0.1.1 更新说明：
+- 项目整体更名为 SubCraft：安装包、可执行文件、数据目录与 MCP 工具名统一为 subcraft 系，数据目录迁移至 `%LOCALAPPDATA%\SubCraft`。
 - 修复打包环境下 Whisper 语音识别缺失 `cublas64_12.dll` 导致报错的问题。
 - 增强 CUDA 动态库检索与真实可用性校验，未配置 CUDA 动态库时自动回退并平滑执行 CPU 识别。
 - 识别执行期增加自动容错降级重试机制。
