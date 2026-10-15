@@ -2,11 +2,17 @@
 import type { AppConfig, MediaInfo, Segment, SubtitleTrack, TaskState } from './types'
 
 const base = () => window.subcraft.apiBase
+const token = () => window.subcraft.token || ''
+/** 给无法自定义请求头的 URL（<video src>、WebSocket）附加令牌 */
+const withToken = (url: string) => {
+  const t = token()
+  return t ? `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(t)}` : url
+}
 
 async function req<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(base() + path, {
     method: body === undefined ? 'GET' : 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-SubCraft-Token': token() },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!res.ok) {
@@ -23,8 +29,8 @@ async function req<T>(path: string, body?: unknown): Promise<T> {
 export const api = {
   probe: (path: string) => req<MediaInfo>('/api/media/probe', { path }),
   fonts: () => req<Record<string, string>>('/api/media/fonts'),
-  streamUrl: (path: string) => `${base()}/api/media/stream?path=${encodeURIComponent(path)}`,
-  fontFileUrl: (family: string) => `${base()}/api/media/fonts/file?family=${encodeURIComponent(family)}`,
+  streamUrl: (path: string) => withToken(`${base()}/api/media/stream?path=${encodeURIComponent(path)}`),
+  fontFileUrl: (family: string) => withToken(`${base()}/api/media/fonts/file?family=${encodeURIComponent(family)}`),
 
   transcribe: (p: {
     video_path: string; duration: number; engine: string; model?: string | null
@@ -98,7 +104,7 @@ export function connectWs(onTask: (t: TaskState & { task_id: string }) => void):
   let retry = 0
   const connect = () => {
     if (closed) return
-    ws = new WebSocket(`${window.subcraft.wsBase}/ws`)
+    ws = new WebSocket(withToken(`${window.subcraft.wsBase}/ws`))
     ws.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data)
