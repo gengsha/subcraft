@@ -9,6 +9,7 @@ from typing import Callable
 from ..config import store, work_dir
 from ..models import Segment
 from . import ffmpeg_tool
+from .segmenter import DEFAULT_MAX_DURATION, DEFAULT_MAX_UNITS, Word, resegment
 
 ProgressCb = Callable[[float, str], None]
 
@@ -148,6 +149,13 @@ def is_cuda_available() -> bool:
         return False
 
 
+def _resegment(segments: list[Segment], words: list[list[Word]] | None = None) -> list[Segment]:
+    """按设置把过长的识别段切成适合上屏的短句（subtitle_max_units<=0 关闭）。"""
+    max_units = float(store.get("subtitle_max_units", DEFAULT_MAX_UNITS) or 0)
+    max_dur = float(store.get("subtitle_max_duration", DEFAULT_MAX_DURATION) or DEFAULT_MAX_DURATION)
+    return resegment(segments, words, max_units, max_dur)
+
+
 class LocalWhisper:
     """faster-whisper 单例，模型按需加载并缓存。"""
 
@@ -203,13 +211,16 @@ class LocalWhisper:
                 vad_filter=True,
                 vad_parameters={"min_silence_duration_ms": 500},
                 beam_size=5,
+                word_timestamps=True,
             )
             segments: list[Segment] = []
+            words: list[list[Word]] = []
             for s in segments_iter:
                 segments.append(Segment(start=round(s.start, 3), end=round(s.end, 3), text=s.text.strip()))
+                words.append([Word(start=w.start, end=w.end, text=w.word) for w in (s.words or [])])
                 if duration > 0:
                     report(0.05 + 0.93 * min(s.end / duration, 1.0), f"识别中 {int(s.end)}s / {int(duration)}s")
-            return segments, info.language or "und"
+            return _resegment(segments, words), info.language or "und"
 
         model = self._load(model_name, device, report)
         try:
@@ -271,7 +282,7 @@ def transcribe_openai_api(
         if s.text.strip()
     ]
     report(0.99, "识别完成")
-    return segments, getattr(resp, "language", None) or "und"
+    return _resegment(segments), getattr(resp, "language", None) or "und"
 
 
 _local = LocalWhisper()
