@@ -1,0 +1,159 @@
+name: Release
+
+# 打 tag（v*）时自动打包 Windows / Linux 并发布到 GitHub Release；
+# 改动打包相关文件的 PR 只构建 + 冒烟测试，不发布。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - backend/build_exe.py
+      - backend/run.py
+      - backend/requirements.txt
+      - app/package.json
+      - app/build.linux.json
+      - app/electron/**
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: 校验 tag 与 package.json 版本一致
+        run: |
+          VERSION=$(node -p "require('./app/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$VERSION" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME 与 app/package.json 版本 $VERSION 不一致"
+            exit 1
+          fi
+          grep -q "version=\"$VERSION\"" backend/app/main.py || {
+            echo "::error::backend/app/main.py 的 FastAPI version 不是 $VERSION"; exit 1; }
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: 安装后端依赖
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: 打包后端 subcraft-backend.exe（含 CUDA 运行库）
+        run: python backend/build_exe.py
+
+      - name: 下载 ffmpeg 运行时到 tools/ffmpeg/bin
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-tmp
+          $bin = Get-ChildItem ffmpeg-tmp -Recurse -Directory -Filter bin | Select-Object -First 1
+          New-Item -ItemType Directory -Force tools/ffmpeg/bin | Out-Null
+          Copy-Item "$($bin.FullName)/ffmpeg.exe","$($bin.FullName)/ffprobe.exe" tools/ffmpeg/bin/
+          tools/ffmpeg/bin/ffmpeg.exe -hide_banner -version | Select-Object -First 1
+
+      - name: 冒烟测试：打包后的后端能启动、令牌校验生效
+        shell: pwsh
+        run: |
+          $env:SUBCRAFT_TOKEN = "ci-smoke"
+          $p = Start-Process backend/dist/subcraft-backend.exe -ArgumentList "--port","47999" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep 2
+            try {
+              $r = Invoke-RestMethod http://127.0.0.1:47999/api/health -Headers @{ "X-SubCraft-Token" = "ci-smoke" }
+              if ($r.ok) { $ok = $true; break }
+            } catch {}
+          }
+          if (-not $ok) { Stop-Process $p -Force; throw "后端 120 秒内未就绪" }
+          $code = try { (Invoke-WebRequest http://127.0.0.1:47999/api/config -UseBasicParsing).StatusCode } catch { $_.Exception.Response.StatusCode.value__ }
+          Stop-Process $p -Force
+          if ($code -ne 401) { throw "缺少令牌时应返回 401，实际 $code" }
+          Write-Host "后端启动正常，无令牌请求被拒绝（401）"
+
+      - name: 打包 Electron（zip + portable）
+        working-directory: app
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npx vite build
+          npx electron-builder --win zip portable --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            release/SubCraft-*-win-x64.zip
+            release/SubCraft-*-portable.exe
+          if-no-files-found: error
+          compression-level: 0
+
+  linux:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: 打包 Electron（tar.gz）
+        working-directory: app
+        run: |
+          npm ci
+          npm run pack:linux -- --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: release/linux/SubCraft-*-x64-linux.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: [version, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: 发布到 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          ls -la dist
+          NOTES="release-notes/$TAG.md"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # 已手动建好的 Release：只补传 / 覆盖资产
+            gh release upload "$TAG" dist/* --clobber
+          elif [ -f "$NOTES" ]; then
+            gh release create "$TAG" dist/* --title "SubCraft 字幕生成器 $TAG" --notes-file "$NOTES"
+          else
+            gh release create "$TAG" dist/* --title "SubCraft 字幕生成器 $TAG" --generate-notes
+          fi
