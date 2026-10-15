@@ -368,3 +368,21 @@ def test_stdio_end_to_end(tmp_path):
                 assert _snake(bad, "is_error") and "轨道不存在" in bad.content[0].text
 
     asyncio.run(main())
+
+
+def test_add_translation_by_agent(tmp_path):
+    """调用方 AI 自己翻译：分批写入、越界校验、缺失统计，时间轴沿用源轨。"""
+    src = tools.subcraft_load_subtitle_file(str(_make_srt(tmp_path)))
+    sid = src["track_id"]
+    first = tools.subcraft_add_translation(sid, "en", ["Hello, world"])
+    tid = first["track_id"]
+    assert first["applied"] == 1 and first["missing"] == [1] and "next_step" in first
+    second = tools.subcraft_add_translation(sid, "en", [{"index": 1, "text": "Second"}, {"index": 9, "text": "x"}],
+                                            track_id=tid)
+    assert second["applied"] == 1 and second["missing_count"] == 0 and len(second["invalid"]) == 1
+    a = tools.subcraft_get_segments(sid)["segments"]
+    b = tools.subcraft_get_segments(tid)["segments"]
+    assert [(s["start"], s["end"]) for s in a] == [(s["start"], s["end"]) for s in b]
+    assert b[1]["text"] == "Second"
+    with pytest.raises(ToolError):
+        tools.subcraft_add_translation(sid, "xx", ["a"])
