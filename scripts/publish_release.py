@@ -47,8 +47,9 @@ BODY = """# SubCraft v0.2.0
 | **Linux x64** | `SubCraft-0.2.0-x64-linux.tar.gz` | Linux 独立安装包（解压后依赖系统 python3 与 ffmpeg） |
 
 #### v0.2.0 更新说明：
-- 新增 MCP 服务端（22 个 `subcraft_*` 工具）与命令行入口 `cli.py`，识别/翻译/编辑/导出全链路可脚本化、可由 AI 客户端驱动。
+- 新增 MCP 服务端（27 个 `subcraft_*` 工具）与命令行入口 `cli.py`，识别/翻译/编辑/导出全链路可脚本化、可由 AI 客户端驱动。
 - 让 AI 自己当翻译：MCP `subcraft_add_translation` 与 CLI `dump` + `translate --translations`，免 API Key 由调用方 AI 结合全片语境翻译后写回。
+- 时间轴工具：拆分 / 合并 / 平移缩放 / 镜头切点吸附（字幕不跨镜头）/ 重叠·过短·过长·阅读速度检查，MCP 与 CLI `retime` 均可用，双语轨自动同步。
 - 识别断句：启用词级时间戳，过长的识别段按标点与停顿自动切成适合上屏的短句（设置中可调长度/时长上限，0 关闭）。
 - 翻译质量：每批附带前文作为语境；新增术语表（设置页 / CLI `--glossary`），人名与术语前后一致；DeepL 同步传入 context。
 - 安全：本地后端改为令牌校验 + CORS 白名单 + Host 校验，杜绝网页跨站读取本地文件、篡改翻译接口窃取 API Key。
