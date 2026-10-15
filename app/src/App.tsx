@@ -5,6 +5,7 @@ import VideoPlayer from './components/VideoPlayer'
 import SubtitleList from './components/SubtitleList'
 import StylePanel from './components/StylePanel'
 import TrackTabs from './components/TrackTabs'
+import TimelineTools from './components/TimelineTools'
 import { useStore } from './store'
 
 // 供自动化冒烟测试驱动 UI（无头验证用）
@@ -34,6 +35,7 @@ export default function App() {
         </div>
         <div className="right">
           <TrackTabs />
+          <TimelineTools />
           <SubtitleList />
         </div>
       </div>
