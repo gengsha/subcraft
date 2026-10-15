@@ -1,5 +1,5 @@
 // 后端 API 客户端 + WebSocket 任务进度
-import type { AppConfig, MediaInfo, Segment, SubtitleTrack, TaskState } from './types'
+import type { AppConfig, MediaInfo, Segment, SubtitleTrack, TaskState, TimelineInfo, TimingIssue } from './types'
 
 const base = () => window.subcraft.apiBase
 const token = () => window.subcraft.token || ''
@@ -70,6 +70,20 @@ export const api = {
     width: number; height: number; video_path: string
     burn_track_id?: string | null; time: number
   }) => req<{ image: string }>('/api/export/preview_frame', p),
+
+  timelineCheck: (p: { segments: Segment[]; max_cps?: number; max_duration?: number }) =>
+    req<{ issues: TimingIssue[] }>('/api/timeline/check', p),
+
+  timelineCuts: (p: { video_path: string; threshold?: number }) =>
+    req<{ task_id: string }>('/api/timeline/cuts', p),
+
+  timelineApply: (p: {
+    tracks: SubtitleTrack[]; track_id: string
+    op: 'split' | 'merge' | 'shift' | 'snap' | 'fix_overlaps'
+    sync?: boolean; index?: number; at_time?: number | null; text?: string | null
+    first?: number; last?: number; offset?: number; scale?: number; from_time?: number | null
+    cuts?: number[]; tolerance?: number
+  }) => req<{ tracks: SubtitleTrack[]; info: TimelineInfo; issues: TimingIssue[] }>('/api/timeline/apply', p),
 
   getConfig: () => req<AppConfig>('/api/config'),
   saveConfig: (cfg: Partial<AppConfig>) => req<AppConfig>('/api/config', cfg),
