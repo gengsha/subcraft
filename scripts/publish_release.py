@@ -4,13 +4,13 @@ import subprocess
 import httpx
 
 REPO = "gengsha/subcraft"
-TAG = "v0.1.1"
-TITLE = "SubCraft 字幕生成器 v0.1.1"
+TAG = "v0.2.0"
+TITLE = "SubCraft 字幕生成器 v0.2.0"
 
 ASSETS = [
-    os.path.abspath(r"release\SubCraft-0.1.1-win-x64.zip"),
-    os.path.abspath(r"release\SubCraft-0.1.1-portable.exe"),
-    os.path.abspath(r"release\linux\SubCraft-0.1.1-x64-linux.tar.gz"),
+    os.path.abspath(r"release\SubCraft-0.2.0-win-x64.zip"),
+    os.path.abspath(r"release\SubCraft-0.2.0-portable.exe"),
+    os.path.abspath(r"release\linux\SubCraft-0.2.0-x64-linux.tar.gz"),
 ]
 
 def get_github_token() -> str:
@@ -32,7 +32,7 @@ def get_github_token() -> str:
         print(f"Warning: Could not get credential from git: {e}")
     return ""
 
-BODY = """# SubCraft v0.1.1
+BODY = """# SubCraft v0.2.0
 
 视频语音识别、AI 多厂商翻译、双语排版与字幕制作工具。
 
@@ -42,15 +42,17 @@ BODY = """# SubCraft v0.1.1
 
 | 平台 | 文件名 | 说明 |
 |---|---|---|
-| **Windows x64** | `SubCraft-0.1.1-win-x64.zip` | 便携免安装版（内置 Python 独立后端与 ffmpeg 运行时，解压即用） |
-| **Windows x64** | `SubCraft-0.1.1-portable.exe` | 单文件便携运行版 |
-| **Linux x64** | `SubCraft-0.1.1-x64-linux.tar.gz` | Linux 独立安装包（解压后依赖系统 python3 与 ffmpeg） |
+| **Windows x64** | `SubCraft-0.2.0-win-x64.zip` | 便携免安装版（内置 Python 独立后端与 ffmpeg 运行时，解压即用） |
+| **Windows x64** | `SubCraft-0.2.0-portable.exe` | 单文件便携运行版 |
+| **Linux x64** | `SubCraft-0.2.0-x64-linux.tar.gz` | Linux 独立安装包（解压后依赖系统 python3 与 ffmpeg） |
 
-#### v0.1.1 更新说明：
-- 项目整体更名为 SubCraft：安装包、可执行文件、数据目录与 MCP 工具名统一为 subcraft 系，数据目录迁移至 `%LOCALAPPDATA%\SubCraft`。
-- 修复打包环境下 Whisper 语音识别缺失 `cublas64_12.dll` 导致报错的问题。
-- 增强 CUDA 动态库检索与真实可用性校验，未配置 CUDA 动态库时自动回退并平滑执行 CPU 识别。
-- 识别执行期增加自动容错降级重试机制。
+#### v0.2.0 更新说明：
+- 新增 MCP 服务端（21 个 `subcraft_*` 工具）与命令行入口 `cli.py`，识别/翻译/编辑/导出全链路可脚本化、可由 AI 客户端驱动。
+- 识别断句：启用词级时间戳，过长的识别段按标点与停顿自动切成适合上屏的短句（设置中可调长度/时长上限，0 关闭）。
+- 翻译质量：每批附带前文作为语境；新增术语表（设置页 / CLI `--glossary`），人名与术语前后一致；DeepL 同步传入 context。
+- 安全：本地后端改为令牌校验 + CORS 白名单 + Host 校验，杜绝网页跨站读取本地文件、篡改翻译接口窃取 API Key。
+- 修复 Linux/macOS 上找不到系统 ffprobe 的问题；修复 package-lock.json 校验和损坏导致 `npm ci` 失败。
+- 项目整体更名为 SubCraft：数据目录迁移至 `%LOCALAPPDATA%\\SubCraft`，MCP 工具名统一为 `subcraft_*`。
 
 #### Windows 使用提示：
 下载后解压到任意目录，双击运行 `SubCraft.exe` 即可使用。首次使用本地语音识别时，将自动按需下载 Whisper 模型权重。
@@ -58,8 +60,8 @@ BODY = """# SubCraft v0.1.1
 #### Linux 使用提示：
 ```bash
 # 解压
-tar -xzf SubCraft-0.1.1-x64-linux.tar.gz
-cd SubCraft-0.1.1-x64-linux
+tar -xzf SubCraft-0.2.0-x64-linux.tar.gz
+cd SubCraft-0.2.0-x64-linux
 
 # 安装系统与后端依赖 (Ubuntu / Debian 示例)
 sudo apt update && sudo apt install -y ffmpeg python3 python3-pip
