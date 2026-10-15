@@ -8,6 +8,10 @@
 [![Release](https://img.shields.io/github/v/release/gengsha/subcraft)](https://github.com/gengsha/subcraft/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+![演示：导入视频 → 识别 → 翻译 → 双语中文为主 → 贴齐镜头切点并拆分跨镜头字幕 → 导出硬字幕](docs/demo.gif)
+
+<sub>导入 → 识别 → 翻译 → 贴齐镜头切点 → 导出（识别与压制等待已加速）· Import → transcribe → translate → snap to shot cuts → export</sub>
+
 [中文](#中文) · [English](#english)
 
 </div>
