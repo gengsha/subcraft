@@ -4,7 +4,7 @@
 
 - `backend/` — Python FastAPI 后端（Electron 以子进程拉起，HTTP+WebSocket 通信）
   - `app/services/` — 核心业务：asr(识别)、translator(翻译)、ass_builder/srt_builder(字幕)、subtitle_parser(srt/vtt/ass 解析)、ffmpeg_tool(封装)、fonts(系统字体)
-  - `app/routers/` — media / transcribe(+translate) / export / config
+  - `app/routers/` — media / transcribe(+translate) / export / config / timeline（编辑器时间轴操作，复用 services/timeline）
   - `app/mcp/` — MCP 服务端：state(会话轨道+后台任务池) / tools(27 个 subcraft_* 工具，含 AI 自译写回与时间轴拆分/合并/平移/切点吸附/检查) / server(装配) / compat(mcp 1.x/2.x 适配)；入口 `backend/mcp_server.py`（stdio，复用 services 层，不依赖桌面客户端）
   - `app/tasks.py` — 线程池任务 + WS 进度广播；长任务一律走 `manager.submit(job)`，job 接收 `progress_cb(p, msg)`
   - `run.py` — 入口（sys.path 自举，任意 cwd 可运行）

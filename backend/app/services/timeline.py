@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import re
 import subprocess
+import threading
+from pathlib import Path
 
-from ..models import Segment
+from ..models import Segment, SubtitleTrack
 from .segmenter import char_units, text_units
 
 MIN_DURATION = 0.3       # 短于此时长基本看不清
@@ -174,16 +176,33 @@ def shift(segs: list[Segment], offset: float = 0.0, scale: float = 1.0,
 
 # ------------------------------------------------------------------ 镜头切点
 
+_cuts_cache: dict[tuple, list[float]] = {}
+_cuts_lock = threading.Lock()
+
+
 def detect_cuts(ffmpeg: str, video: str, threshold: float = 0.3) -> list[float]:
-    """用 ffmpeg 场景检测找出镜头切换时间点（秒）。threshold 越小越敏感（0.2~0.5）。"""
+    """用 ffmpeg 场景检测找出镜头切换时间点（秒）。threshold 越小越敏感（0.2~0.5）。
+
+    先缩到 320 宽再检测（长视频快很多，结果基本不变）；按 路径+修改时间+阈值 缓存。
+    """
+    p = Path(video)
+    key = (str(p.resolve()), p.stat().st_mtime if p.exists() else 0, round(float(threshold), 3))
+    with _cuts_lock:
+        if key in _cuts_cache:
+            return list(_cuts_cache[key])
     proc = subprocess.run(
-        [ffmpeg, "-hide_banner", "-nostats", "-i", video, "-an", "-sn",
-         "-vf", f"select='gt(scene,{threshold})',showinfo", "-f", "null", "-"],
+        [ffmpeg, "-hide_banner", "-nostats", "-i", video, "-an", "-sn", "-dn",
+         "-vf", f"scale=320:-2,select='gt(scene,{threshold})',showinfo", "-f", "null", "-"],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if proc.returncode != 0:
         raise RuntimeError(f"场景检测失败: {proc.stderr[-800:]}")
-    return sorted({round(float(m), 3) for m in re.findall(r"pts_time:([\d.]+)", proc.stderr)})
+    cuts = sorted({round(float(m), 3) for m in re.findall(r"pts_time:([\d.]+)", proc.stderr)})
+    with _cuts_lock:
+        if len(_cuts_cache) > 32:
+            _cuts_cache.clear()
+        _cuts_cache[key] = cuts
+    return list(cuts)
 
 
 def snap_to_cuts(segs: list[Segment], cuts: list[float], tolerance: float = 0.5) -> tuple[list[Segment], list[dict]]:
@@ -219,3 +238,17 @@ def crossing_cuts(segs: list[Segment], cuts: list[float], margin: float = 0.3) -
         if inner:
             found.append({"index": i, "cuts": inner, "text": s.text})
     return found
+
+
+# ------------------------------------------------------------------ 多轨对齐
+
+def aligned_with(tracks: list[SubtitleTrack], target: SubtitleTrack) -> list[SubtitleTrack]:
+    """找出与 target 逐段时间完全一致的其他轨（如 AI/接口翻译出的译文轨），结构操作要同步到它们。"""
+    segs = target.segments
+    out = []
+    for t in tracks:
+        if t.id == target.id or len(t.segments) != len(segs):
+            continue
+        if all(abs(a.start - b.start) < 1e-3 and abs(a.end - b.end) < 1e-3 for a, b in zip(t.segments, segs)):
+            out.append(t)
+    return out

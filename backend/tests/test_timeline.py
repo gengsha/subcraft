@@ -65,3 +65,67 @@ def test_check_and_fix_overlaps():
     fixed, n = timeline.fix_overlaps(s)
     assert n >= 1 and fixed[0].end == 1.5
     assert not timeline.check(segs((0, 2, "Hello there, friend")))   # 英文按 20 字母/秒，不误报
+
+
+# ------------------------------------------------------------------ HTTP 接口（桌面端编辑器用）
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from backend.app.main import create_app  # noqa: E402
+from backend.app.models import SubtitleStyle, SubtitleTrack  # noqa: E402
+from backend.app.security import TOKEN_ENV  # noqa: E402
+
+
+@pytest.fixture()
+def client(monkeypatch):
+    monkeypatch.setenv(TOKEN_ENV, "tk")
+    c = TestClient(create_app(), base_url="http://127.0.0.1")
+    c.headers["X-SubCraft-Token"] = "tk"
+    return c
+
+
+def _tracks():
+    src = SubtitleTrack(id="a", language="en", label="en", role="source",
+                        segments=segs((0, 4, "Hello world, how are you"), (4.2, 6, "fine")))
+    trn = SubtitleTrack(id="b", language="zh", label="zh", role="translation",
+                        segments=segs((0, 4, "你好世界，你好吗"), (4.2, 6, "很好")))
+    return [src.model_dump(), trn.model_dump()]
+
+
+def test_api_split_syncs_aligned_track(client):
+    r = client.post("/api/timeline/apply", json={"tracks": _tracks(), "track_id": "a", "op": "split",
+                                                 "index": 0, "at_time": 2.0})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    a, b = body["tracks"]
+    assert len(a["segments"]) == len(b["segments"]) == 3
+    assert a["segments"][0]["end"] == b["segments"][0]["end"] == 2.0
+    assert body["info"]["synced"] == ["b"]
+
+
+def test_api_merge_shift_fix_and_errors(client):
+    r = client.post("/api/timeline/apply", json={"tracks": _tracks(), "track_id": "a", "op": "merge", "first": 0, "last": 1})
+    assert [len(t["segments"]) for t in r.json()["tracks"]] == [1, 1]
+    r = client.post("/api/timeline/apply", json={"tracks": _tracks(), "track_id": "a", "op": "shift",
+                                                 "offset": 1, "from_time": 4})
+    assert r.json()["tracks"][1]["segments"][1]["start"] == 5.2 and r.json()["info"]["shifted"] == 1
+    r = client.post("/api/timeline/apply", json={"tracks": _tracks(), "track_id": "a", "op": "split", "index": 9})
+    assert r.status_code == 400
+    r = client.post("/api/timeline/apply", json={"tracks": _tracks(), "track_id": "a", "op": "snap"})
+    assert r.status_code == 400 and "cuts" in r.json()["detail"]
+    r = client.post("/api/timeline/check", json={"segments": [{"start": 0, "end": 2, "text": "a"},
+                                                              {"start": 1, "end": 3, "text": "b"}]})
+    assert r.json()["issues"][0]["type"] == "overlap"
+
+
+def test_bilingual_main_never_smaller_than_sub():
+    from backend.app.services import ass_builder
+    big = SubtitleStyle(font_size=48)
+    small = SubtitleStyle(font_size=34, primary_color="#FFFF99")
+    src = SubtitleTrack(id="a", language="en", label="en", role="source", segments=segs((0, 1, "Hi")), style=big)
+    trn = SubtitleTrack(id="b", language="zh", label="zh", role="translation", segments=segs((0, 1, "嗨")), style=small)
+    ass = ass_builder.build_ass([src, trn], bilingual=True, primary_id="b")
+    main = next(line for line in ass.splitlines() if line.startswith("Style: Main"))
+    sub = next(line for line in ass.splitlines() if line.startswith("Style: Sub"))
+    assert ",48," in main and ",34," in sub
+    assert trn.style.font_size == 34          # 不修改入参

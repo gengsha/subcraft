@@ -6,7 +6,7 @@ import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import config, export, media, transcribe
+from .routers import config, export, media, timeline, transcribe
 from .security import ALLOWED_ORIGIN_REGEX, TokenAuthMiddleware
 from .tasks import manager
 
@@ -25,6 +25,7 @@ def create_app() -> FastAPI:
     app.include_router(transcribe.router)
     app.include_router(export.router)
     app.include_router(config.router)
+    app.include_router(timeline.router)
 
     @app.on_event("startup")
     async def _startup() -> None:

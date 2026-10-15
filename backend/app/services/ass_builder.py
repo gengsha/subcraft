@@ -74,6 +74,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
 
+def main_sub_styles(primary: SubtitleTrack, secondary: SubtitleTrack) -> tuple[SubtitleTrack, SubtitleTrack]:
+    """双语时主语言字号不应小于副语言。
+
+    翻译轨默认字号是源轨的 70%；把翻译轨设为主轨后若不处理，上方的主字幕反而比下方的副字幕小。
+    这里只在渲染时交换两者字号（颜色、字体等各自保留），不改入参。
+    """
+    if primary.style.font_size >= secondary.style.font_size:
+        return primary, secondary
+    p = primary.model_copy(update={"style": primary.style.model_copy(update={"font_size": secondary.style.font_size})})
+    s = secondary.model_copy(update={"style": secondary.style.model_copy(update={"font_size": primary.style.font_size})})
+    return p, s
+
+
 def build_ass(
     tracks: list[SubtitleTrack],
     play_w: int = 1920,
@@ -88,6 +101,7 @@ def build_ass(
     if bilingual and len(tracks) >= 2:
         primary = next((t for t in tracks if t.id == primary_id), tracks[0])
         secondary = next(t for t in tracks if t.id != primary.id)
+        primary, secondary = main_sub_styles(primary, secondary)
         styles = "\n".join([
             style_line("Main", primary.style),
             style_line("Sub", secondary.style),
