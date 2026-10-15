@@ -7,7 +7,7 @@ from backend.app.services import translator
 
 def test_old_config_migrates_to_ai_providers(tmp_path, monkeypatch):
     """旧版 openai_* 配置应迁移为 ai_providers 列表项。"""
-    monkeypatch.setenv("SubCraft_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("SUBCRAFT_DATA_DIR", str(tmp_path))
     (tmp_path / "config.json").write_text(json.dumps({
         "openai_base_url": "https://api.deepseek.com/v1",
         "openai_api_key": "sk-oldkey1234",

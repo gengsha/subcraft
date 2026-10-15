@@ -31,7 +31,7 @@
     "wait-on": "^8.0.1"
   },
   "build": {
-    "appId": "com.subcraft.subtitle",
+    "appId": "com.subcraft.app",
     "productName": "SubCraft",
     "directories": {
       "output": "../release"

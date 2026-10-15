@@ -39,7 +39,7 @@ async function startBackend() {
     const res = process.resourcesPath
     const winBin = path.join(res, 'backend', 'subcraft-backend.exe')
     const linuxBin = path.join(res, 'backend', 'subcraft-backend')
-    env.SubCraft_TOOLS_DIR = path.join(res, 'tools')
+    env.SUBCRAFT_TOOLS_DIR = path.join(res, 'tools')
     if (fs.existsSync(winBin)) {
       cmd = winBin
       args = ['--port', String(backendPort)]
@@ -56,7 +56,7 @@ async function startBackend() {
     const py = path.join(root, '.venv', 'Scripts', 'python.exe')
     cmd = fs.existsSync(py) ? py : 'python'
     args = [path.join(root, 'backend', 'run.py'), '--port', String(backendPort)]
-    env.SubCraft_TOOLS_DIR = path.join(root, 'tools')
+    env.SUBCRAFT_TOOLS_DIR = path.join(root, 'tools')
   }
   const logFile = path.join(app.getPath('userData'), 'backend.log')
   const logFd = fs.openSync(logFile, 'a')

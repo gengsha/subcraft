@@ -43,7 +43,7 @@ def _setup_cuda_dlls() -> None:
         candidate_roots.add(exe_dir / "_internal")
         candidate_roots.add(exe_dir / "tools")
 
-    tools_dir = os.environ.get("SubCraft_TOOLS_DIR")
+    tools_dir = os.environ.get("SUBCRAFT_TOOLS_DIR")
     if tools_dir:
         candidate_roots.add(Path(tools_dir))
 

@@ -1,5 +1,5 @@
 {
-  "appId": "com.subcraft.subtitle",
+  "appId": "com.subcraft.app",
   "productName": "SubCraft",
   "directories": {
     "output": "../release/linux"

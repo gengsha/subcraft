@@ -338,7 +338,7 @@ def test_stdio_end_to_end(tmp_path):
         params = StdioServerParameters(
             command=sys.executable,
             args=[str(MCP_ENTRY)],
-            env={**os.environ, "SubCraft_DATA_DIR": str(tmp_path), "PYTHONIOENCODING": "utf-8"},
+            env={**os.environ, "SUBCRAFT_DATA_DIR": str(tmp_path), "PYTHONIOENCODING": "utf-8"},
         )
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:

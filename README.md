@@ -1,6 +1,6 @@
 <div align="center">
 
-# SubCraft (SubCraft 字幕生成器)
+# SubCraft
 
 视频语音识别、AI 多厂商翻译、双语排版与字幕制作工具。
 

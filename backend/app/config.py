@@ -14,7 +14,7 @@ def project_root() -> Path:
 
 
 def data_dir() -> Path:
-    override = os.environ.get("SubCraft_DATA_DIR")
+    override = os.environ.get("SUBCRAFT_DATA_DIR")
     if override:
         return Path(override)
     local = os.environ.get("LOCALAPPDATA")
@@ -23,10 +23,10 @@ def data_dir() -> Path:
 
 
 def tools_dir() -> Path:
-    override = os.environ.get("SubCraft_TOOLS_DIR")
+    override = os.environ.get("SUBCRAFT_TOOLS_DIR")
     if override:
         return Path(override)
-    # 开发模式：项目根目录/tools；打包后由 Electron 设置 SubCraft_TOOLS_DIR
+    # 开发模式：项目根目录/tools；打包后由 Electron 设置 SUBCRAFT_TOOLS_DIR
     return project_root() / "tools"
 
 

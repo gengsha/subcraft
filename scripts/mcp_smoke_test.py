@@ -131,7 +131,7 @@ async def run(args: argparse.Namespace) -> None:
     srt = make_srt(work)
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     if args.data_dir:
-        env["SubCraft_DATA_DIR"] = str(args.data_dir)
+        env["SUBCRAFT_DATA_DIR"] = str(args.data_dir)
 
     params = StdioServerParameters(command=sys.executable, args=[str(MCP_ENTRY)], env=env)
     async with stdio_client(params) as (read, write):
@@ -253,7 +253,7 @@ def main() -> None:
     parser.add_argument("--source-lang", help="识别时指定源语言码（如 en）")
     parser.add_argument("--target-lang", help="识别后追加翻译到该语言（需已配置翻译厂商）")
     parser.add_argument("--workdir", help="产物输出目录，默认系统临时目录")
-    parser.add_argument("--data-dir", help="覆盖 SubCraft_DATA_DIR（隔离真实配置）")
+    parser.add_argument("--data-dir", help="覆盖 SUBCRAFT_DATA_DIR（隔离真实配置）")
     args = parser.parse_args()
     asyncio.run(run(args))
 

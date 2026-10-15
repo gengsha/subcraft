@@ -11,13 +11,13 @@
   - `cli.py` — 命令行入口（无状态、文件进文件出：status/probe/fonts/transcribe/translate/gen/export/preview；复用 services 层，不依赖 MCP SDK；进度走 stderr、`--json` 走 stdout、预期内错误退出码 2）
   - `build_exe.py` — PyInstaller 打包（`--no-cuda` 精简版）
 - `app/` — Electron + React18 + TS + Vite 前端
-  - `electron/main.cjs` — 拉起后端(随机空闲端口)、文件对话框 IPC；生产模式用 `process.resourcesPath/backend/subcraft-backend.exe` 并设 `SubCraft_TOOLS_DIR`
+  - `electron/main.cjs` — 拉起后端(随机空闲端口)、文件对话框 IPC；生产模式用 `process.resourcesPath/backend/subcraft-backend.exe` 并设 `SUBCRAFT_TOOLS_DIR`
   - `src/components/` — TopBar(流程按钮+各对话框) / VideoPlayer(jassub) / SubtitleList / StylePanel / TrackTabs
   - `src/store.ts` — zustand 全局状态（tracks 为核心数据）
   - `src/api.ts` — fetch 封装 + `waitTask` 轮询 + `connectWs`
   - `scripts/cdp_smoke_test.mjs` — CDP 驱动的真实窗口冒烟测试
 - `tools/ffmpeg/` — 运行时自动下载的新版 ffmpeg（gyan.dev essentials）
-- 数据/配置目录：`%LOCALAPPDATA%/SubCraft`（可用 `SubCraft_DATA_DIR` 覆盖）
+- 数据/配置目录：`%LOCALAPPDATA%/SubCraft`（可用 `SUBCRAFT_DATA_DIR` 覆盖）
 
 ## 构建/测试命令
 
