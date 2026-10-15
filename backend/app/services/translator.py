@@ -2,9 +2,13 @@
 
 批处理策略：将多条字幕按编号拼成一批发送，回复按编号解析对齐；
 数量不一致时对该批降级为逐条翻译，保证时间轴绝不错位。
+
+上下文与术语：每批附带前几条原文作为「仅供参考、不要翻译」的上下文，
+并可附带用户术语表（每行「原文=译文」），保证人名、术语跨批次一致。
 """
 from __future__ import annotations
 
+import inspect
 import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
@@ -24,6 +28,38 @@ DEEPL_LANG_MAP = {
 
 # 编号格式: "1." / "1、" / "1:" / "[1]" / "(1)" / "（1）" 等；裸数字+空格不算编号，避免误吞正文
 _LINE_RE = re.compile(r"^\s*(?:[\[(\（【]\s*(\d+)\s*[\])\）】]|(\d+)\s*[.、:：)）\-])\s*(.*)$")
+
+
+CONTEXT_LINES = 3  # 每批附带的前文条数
+
+
+def parse_glossary(text: str | None) -> list[tuple[str, str]]:
+    """解析术语表：每行「原文=译文」（也接受 → / => / 制表符）；# 开头为注释。"""
+    out: list[tuple[str, str]] = []
+    for ln in (text or "").splitlines():
+        ln = ln.strip()
+        if not ln or ln.startswith("#"):
+            continue
+        m = re.split(r"\s*(?:=>|→|=|\t)\s*", ln, maxsplit=1)
+        if len(m) == 2 and m[0] and m[1]:
+            out.append((m[0], m[1]))
+    return out
+
+
+def _build_prompt(texts: list[str], source_lang: str, target_lang: str,
+                  context: list[str] | None, glossary: list[tuple[str, str]] | None) -> str:
+    parts: list[str] = []
+    if glossary:
+        used = [(s, t) for s, t in glossary if any(s.lower() in x.lower() for x in texts)]
+        if used:
+            parts.append("术语表（必须按此翻译）：\n" + "\n".join(f"{s} = {t}" for s, t in used))
+    if context:
+        parts.append("前文（仅供理解语境，不要翻译、不要输出）：\n" + "\n".join(context))
+    parts.append(
+        f"将以下字幕从 {source_lang} 翻译为 {target_lang}：\n"
+        + "\n".join(f"{i + 1}. {t}" for i, t in enumerate(texts))
+    )
+    return "\n\n".join(parts)
 
 
 def parse_numbered_lines(text: str) -> list[str]:
@@ -69,20 +105,22 @@ class OpenAICompatTranslator:
         )
         return resp.choices[0].message.content or ""
 
-    def translate_batch(self, texts: list[str], source_lang: str, target_lang: str) -> list[str]:
-        prompt = (
-            f"将以下字幕从 {source_lang} 翻译为 {target_lang}：\n"
-            + "\n".join(f"{i + 1}. {t}" for i, t in enumerate(texts))
-        )
-        result = parse_numbered_lines(self._chat(prompt))
+    def translate_batch(
+        self,
+        texts: list[str],
+        source_lang: str,
+        target_lang: str,
+        context: list[str] | None = None,
+        glossary: list[tuple[str, str]] | None = None,
+    ) -> list[str]:
+        result = parse_numbered_lines(self._chat(_build_prompt(texts, source_lang, target_lang, context, glossary)))
         if len(result) == len(texts):
             return result
-        # 数量不齐：逐条重试，保证对齐
+        # 数量不齐：逐条重试，保证对齐；逐条时仍带上紧邻前文与术语
         out: list[str] = []
-        for t in texts:
-            single = parse_numbered_lines(
-                self._chat(f"将以下字幕从 {source_lang} 翻译为 {target_lang}：\n1. {t}")
-            )
+        for i, t in enumerate(texts):
+            prev = (list(context or []) + texts[:i])[-CONTEXT_LINES:]
+            single = parse_numbered_lines(self._chat(_build_prompt([t], source_lang, target_lang, prev, glossary)))
             out.append(single[0] if single else t)
         return out
 
@@ -94,19 +132,29 @@ class DeepLTranslator:
         self.url = f"{host}/v2/translate"
         self.key = api_key
 
-    def translate_batch(self, texts: list[str], source_lang: str, target_lang: str) -> list[str]:
+    def translate_batch(
+        self,
+        texts: list[str],
+        source_lang: str,
+        target_lang: str,
+        context: list[str] | None = None,
+        glossary: list[tuple[str, str]] | None = None,  # DeepL 术语表需预先建表，这里不使用
+    ) -> list[str]:
         target = DEEPL_LANG_MAP.get(target_lang, target_lang.upper())
         source = DEEPL_LANG_MAP.get(source_lang, source_lang.upper())
         if source.startswith("EN"):
             source = "EN"
+        data: dict = {
+            "auth_key": self.key,
+            "text": texts,
+            "source_lang": source,
+            "target_lang": target,
+        }
+        if context:
+            data["context"] = "\n".join(context)  # DeepL 原生支持 context 参数（不计费）
         resp = httpx.post(
             self.url,
-            data={
-                "auth_key": self.key,
-                "text": texts,
-                "source_lang": source,
-                "target_lang": target,
-            },
+            data=data,
             timeout=60,
         )
         resp.raise_for_status()
@@ -164,9 +212,21 @@ def translate_segments(
     batch_size: int = 25,
     concurrency: int = 4,
     progress_cb: ProgressCb | None = None,
+    glossary: str | None = None,
 ) -> list[Segment]:
-    """翻译字幕段（保持时间轴不变），分批并发处理。"""
+    """翻译字幕段（保持时间轴不变），分批并发处理。
+
+    glossary 为术语表文本（每行「原文=译文」）；不传时读取设置里的 translation_glossary。
+    """
+    from ..config import store
+
     translator = _get_translator(provider, provider_id, api_key, base_url, model)
+    terms = parse_glossary(glossary if glossary is not None else store.get("translation_glossary", ""))
+    try:
+        params = inspect.signature(translator.translate_batch).parameters
+        rich = "context" in params or any(p.kind is p.VAR_KEYWORD for p in params.values())
+    except (TypeError, ValueError):
+        rich = False
     batches: list[list[int]] = []
     for i in range(0, len(segments), batch_size):
         batches.append(list(range(i, min(i + batch_size, len(segments)))))
@@ -176,7 +236,12 @@ def translate_segments(
     def work(batch: list[int]) -> None:
         nonlocal done
         texts = [segments[i].text for i in batch]
-        translated = translator.translate_batch(texts, source_lang, target_lang)
+        if rich:
+            first = batch[0]
+            ctx = [s.text for s in segments[max(0, first - CONTEXT_LINES):first]]
+            translated = translator.translate_batch(texts, source_lang, target_lang, context=ctx, glossary=terms)
+        else:
+            translated = translator.translate_batch(texts, source_lang, target_lang)
         for idx, text in zip(batch, translated):
             results[idx] = text
         done += len(batch)
