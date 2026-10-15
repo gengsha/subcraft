@@ -22,7 +22,7 @@
 ## 构建/测试命令
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest backend\tests -v   # 后端测试
+.\.venv\Scripts\python.exe -m pytest -v                 # 后端测试（需 requirements-dev.txt；pytest.ini 已设 pythonpath）
 cd app; npx tsc --noEmit && npx vite build              # 前端检查+构建
 cd app; npm run dev                                     # 开发启动
 .\.venv\Scripts\python.exe backend\cli.py status        # CLI 自检
@@ -41,4 +41,6 @@ cd app; npm run dev                                     # 开发启动
 - Python 3.13 + Windows 中文环境：子进程输出一律 `encoding="utf-8", errors="replace"`
 - MCP 约定：工具预期内失败必须抛 `ToolError`（普通异常会被 SDK 收敛成无细节错误）；stdio 下 stdout 是协议通道，禁止 print；长任务支持 `wait=false` 返回 job_id + `subcraft_job_status` 轮询，`wait=true` 走 `ctx.report_progress`；重活（ffmpeg 下载/压制/识别）必须在任务线程里跑，不能阻塞事件循环
 - CLI 与 MCP/桌面端共用同一套约定：副语言样式 = 字号 0.7 倍 + 淡黄 #FFFF99（`app.mcp.state.translation_style`）；双语主行由 primary 决定；CLI 子命令参数校验失败统一抛 `CliError`（退出码 2）且在 `main` 的 try 块内完成
+- 本地 API 安全：所有 HTTP/WS 请求经 `app/security.py` 校验令牌（头 `X-SubCraft-Token` 或 `?token=`，`<video src>`/WS 用查询参数，见 `api.ts` 的 `withToken`）；新增路由无需额外处理，新增无法带头的资源 URL 记得 `withToken`
+- 识别断句在 `services/segmenter.py`（`resegment`），本地引擎用词级时间戳、云端按字数比例插值；翻译上下文/术语表在 `translator._build_prompt`
 - 前端注释与 UI 文案使用中文
