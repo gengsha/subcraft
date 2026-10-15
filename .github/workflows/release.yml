@@ -55,18 +55,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-          cache: pip
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: app/package-lock.json
 
-      - name: 安装后端依赖
-        run: python -m pip install -r backend/requirements.txt
+      # 发布包不含 CUDA 运行库：带上后 Windows 资产合计 3.2 GB，单个文件逼近 GitHub Release 2 GB 上限；
+      # 与此前手动发布的体积（portable ~240 MB）一致。识别时找不到 CUDA 库会自动回退 CPU。
+      - name: 安装后端依赖（不含 nvidia CUDA 包）
+        shell: bash
+        run: |
+          grep -v -E '^nvidia-' backend/requirements.txt > req-nocuda.txt
+          python -m pip install -r req-nocuda.txt
 
-      - name: 打包后端 subcraft-backend.exe（含 CUDA 运行库）
-        run: python backend/build_exe.py
+      - name: 打包后端 subcraft-backend.exe（CPU 版）
+        run: python backend/build_exe.py --no-cuda
 
       - name: 下载 ffmpeg 运行时到 tools/ffmpeg/bin
         shell: pwsh
