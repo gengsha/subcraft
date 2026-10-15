@@ -49,6 +49,23 @@ def _join(words: list[Word]) -> str:
     return "".join(w.text for w in words).strip()
 
 
+# 英文断行习惯：连词/关系词适合放到下一行开头；冠词、介词、物主代词等不宜留在行尾
+_EN_BREAK_BEFORE = {
+    "and", "but", "because", "so", "or", "that", "which", "who", "whom", "whose", "when", "where",
+    "while", "if", "although", "though", "unless", "until", "since", "then", "before", "after",
+    "how", "what", "why",
+}
+_EN_NO_END = {
+    "a", "an", "the", "to", "of", "in", "on", "at", "for", "with", "from", "by", "about", "into",
+    "my", "your", "his", "her", "its", "our", "their", "this", "these", "those", "one", "very",
+    "is", "are", "was", "were", "be", "i", "we", "you", "they", "he", "she", "it", "not", "no",
+}
+
+
+def _bare(word: Word) -> str:
+    return re.sub(r"[^\w']", "", word.text.strip().lower())
+
+
 def _break_score(prev: Word, nxt: Word) -> float:
     """在 prev 与 nxt 之间断开的「好坏」分数，越大越适合断开。"""
     tail = prev.text.strip()[-1:] if prev.text.strip() else ""
@@ -58,6 +75,11 @@ def _break_score(prev: Word, nxt: Word) -> float:
     elif tail in _WEAK:
         score += 2.0
     score += min(max(nxt.start - prev.end, 0.0), 1.0) * 2.0  # 停顿越长越适合断
+    if tail not in _STRONG and tail not in _WEAK:
+        if _bare(nxt) in _EN_BREAK_BEFORE:
+            score += 1.5
+        if _bare(prev) in _EN_NO_END:
+            score -= 1.5
     return score
 
 
@@ -85,7 +107,7 @@ def split_words(
             continue
         # 标点/停顿得分 - 偏离中点的惩罚（保持两段长度均衡）
         balance = abs(left - right) / total
-        score = _break_score(words[i - 1], words[i]) - balance * 2.5
+        score = _break_score(words[i - 1], words[i]) - balance * 2.0
         if score > best_score:
             best_i, best_score = i, score
     if best_i is None:  # 太短无法再分（如单个超长词），原样保留
