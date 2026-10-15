@@ -92,3 +92,20 @@ def test_unknown_language_exit_code_2(tmp_path, capsys):
     rc = cli.main(["translate", str(zh), "-t", "xx", "-q"])
     assert rc == 2
     assert "语言码无效" in capsys.readouterr().err
+
+
+def test_dump_and_translate_with_agent_translations(tmp_path, capsys):
+    """dump 出「序号. 原文」，AI 翻译后用 translate --translations 写回，不调用任何 API。"""
+    _, en = write_subs(tmp_path)
+    assert cli.main(["dump", str(en), "-q"]) == 0
+    assert capsys.readouterr().out.splitlines()[:2] == ["1. Hello world", "2. Second line"]
+    tr = tmp_path / "zh.txt"
+    tr.write_text("1. 你好世界\n2. 第二行\n", encoding="utf-8")
+    out = tmp_path / "out"
+    rc = cli.main(["translate", str(en), "-t", "zh", "--translations", str(tr),
+                   "-o", str(out), "--formats", "srt", "-q"])
+    assert rc == 0
+    assert {p.name for p in out.iterdir()} == {"demo.en.srt", "demo.zh.srt", "demo.bilingual.srt"}
+    assert "第二行" in (out / "demo.zh.srt").read_text(encoding="utf-8-sig")
+    tr.write_text("1. 只有一行\n", encoding="utf-8")
+    assert cli.main(["translate", str(en), "-t", "zh", "--translations", str(tr), "-o", str(out), "-q"]) == 2
