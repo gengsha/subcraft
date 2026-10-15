@@ -249,12 +249,16 @@ def subcraft_status() -> dict:
 
 
 @tool
-def subcraft_probe_media(path: str) -> dict:
+def subcraft_probe_media(path: str | None = None, video_path: str | None = None) -> dict:
     """探测音视频文件：时长（秒）、分辨率、视频/音频编码、文件大小。
 
     Args:
         path: 媒体文件绝对路径
+        video_path: 同 path（与其他工具参数名保持一致的别名，二选一）
     """
+    path = path or video_path
+    if not path:
+        _fail("请提供 path（媒体文件绝对路径）")
     p = _existing(path, "媒体文件")
     try:
         info = ffmpeg_tool.probe(str(p))
