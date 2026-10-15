@@ -82,16 +82,23 @@ jobs:
         shell: pwsh
         run: |
           $env:SUBCRAFT_TOKEN = "ci-smoke"
-          $p = Start-Process backend/dist/subcraft-backend.exe -ArgumentList "--port","47999" -PassThru
+          # 与 Electron 一样给子进程接上 stdout/stderr 管道（--noconsole 的 exe 没有控制台句柄）
+          $p = Start-Process backend/dist/subcraft-backend.exe -ArgumentList "--port","47999" -PassThru `
+            -RedirectStandardOutput backend-out.log -RedirectStandardError backend-err.log
           $ok = $false
-          for ($i = 0; $i -lt 60; $i++) {
+          for ($i = 0; $i -lt 150; $i++) {
+            if ($p.HasExited) { break }
             Start-Sleep 2
             try {
               $r = Invoke-RestMethod http://127.0.0.1:47999/api/health -Headers @{ "X-SubCraft-Token" = "ci-smoke" }
               if ($r.ok) { $ok = $true; break }
             } catch {}
           }
-          if (-not $ok) { Stop-Process $p -Force; throw "后端 120 秒内未就绪" }
+          if (-not $ok) {
+            if (-not $p.HasExited) { Stop-Process $p -Force }
+            Get-Content backend-out.log, backend-err.log -ErrorAction SilentlyContinue | Select-Object -Last 60
+            throw "后端未就绪（退出码 $($p.ExitCode)）"
+          }
           $code = try { (Invoke-WebRequest http://127.0.0.1:47999/api/config -UseBasicParsing).StatusCode } catch { $_.Exception.Response.StatusCode.value__ }
           Stop-Process $p -Force
           if ($code -ne 401) { throw "缺少令牌时应返回 401，实际 $code" }
