@@ -165,6 +165,23 @@ def test_bilingual_export_merges_two_tracks(tmp_path):
     assert any(n.endswith("bilingual.srt") for n in names)
     assert len(res["files"]) == 3                      # zh + en + bilingual
     assert SESSION.get(trn["track_id"]).track.role == "translation"
+    src_style = SESSION.get(src["track_id"]).track.style
+    trn_style = SESSION.get(trn["track_id"]).track.style
+    assert trn_style.font_size == round(src_style.font_size * 0.7)
+    assert trn_style.primary_color.upper() == "#FFFF99"
+
+
+def test_loaded_translation_as_primary_renders_larger(tmp_path):
+    """两个字幕文件载入后把译文轨设为主轨：ASS 里主轨字号应大于副轨（Windows 验收发现的问题）。"""
+    src = tools.subcraft_load_subtitle_file(str(_make_srt(tmp_path, "s.en.srt")), language="en")
+    trn = tools.subcraft_load_subtitle_file(str(_make_srt(tmp_path, "s.zh.srt")), language="zh",
+                                      role="translation")
+    res = tools.subcraft_build_ass(track_ids=[src["track_id"], trn["track_id"]], bilingual=True,
+                                   primary_id=trn["track_id"])
+    ass = res["ass"]
+    sizes = {line.split(",")[0].split(":")[1].strip(): int(line.split(",")[2])
+             for line in ass.splitlines() if line.startswith("Style:")}
+    assert sizes["Main"] > sizes["Sub"]
 
 
 def test_unknown_track_raises_tool_error():
