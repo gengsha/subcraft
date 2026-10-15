@@ -41,6 +41,8 @@
 
 ### 功能特性
 
+![SubCraft 编辑器：双语预览、时间轴工具栏与字幕列表](docs/editor-timeline.png)
+
 - **语音识别 (ASR)**：支持基于 faster-whisper 的本地离线识别（支持 NVIDIA CUDA GPU 加速），以及 OpenAI Whisper 云端 API。
 - **AI 翻译**：支持接入 OpenAI、DeepSeek、Kimi (Moonshot)、通义千问 (Qwen)、智谱 GLM、Claude / OpenRouter 及 DeepL 等服务。采用分批并发与段号对齐机制，保持时间轴与段落对应；每批附带前文作为语境，并支持**术语表**（每行「原文=译文」），保证人名与术语前后一致。
 - **智能断句**：基于词级时间戳，把 Whisper 过长的识别段按标点与停顿切成适合上屏的短句（默认单条约 21 个汉字 / 42 个英文字符、7 秒以内，可在设置中调整或关闭）。
