@@ -752,16 +752,10 @@ def _timeline_result(st, extra: dict[str, Any], around: list[int] | None = None)
 
 
 def _paired(st, _op=None) -> list:
-    """对与 st 逐段对齐的翻译轨/源轨做同样的结构操作，保持双语对齐。返回同步了的轨道 id。"""
-    synced = []
-    n_before = len(st.track.segments)
-    for other in SESSION.all():
-        if other.id == st.id or len(other.track.segments) != n_before:
-            continue
-        if all(abs(a.start - b.start) < 1e-3 and abs(a.end - b.end) < 1e-3
-               for a, b in zip(other.track.segments, st.track.segments)):
-            synced.append(other)
-    return synced
+    """与 st 逐段对齐的其他会话轨（如译文轨）：结构操作要同步到它们，保持双语对齐。"""
+    others = [x for x in SESSION.all() if x.id != st.id]
+    ids = {t.id for t in timeline.aligned_with([x.track for x in others], st.track)}
+    return [x for x in others if x.id in ids]
 
 
 @tool
