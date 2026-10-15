@@ -7,16 +7,19 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import config, export, media, transcribe
+from .security import ALLOWED_ORIGIN_REGEX, TokenAuthMiddleware
 from .tasks import manager
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="SubCraft Backend", version="0.1.1")
+    app = FastAPI(title="SubCraft Backend", version="0.2.0")
+    # 先加令牌校验，再加 CORS（后加的在外层），保证预检请求由 CORS 直接应答
+    app.add_middleware(TokenAuthMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origin_regex=ALLOWED_ORIGIN_REGEX,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-SubCraft-Token", "Range"],
     )
     app.include_router(media.router)
     app.include_router(transcribe.router)
