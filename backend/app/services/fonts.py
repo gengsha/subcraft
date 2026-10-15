@@ -1,7 +1,9 @@
-"""枚举 Windows 系统字体（注册表），并提供字体文件供前端预览。"""
+"""枚举系统字体（Windows 注册表 / Linux·macOS fontconfig），并提供字体文件供前端预览。"""
 from __future__ import annotations
 
 import sys
+import shutil
+import subprocess
 from pathlib import Path
 
 _cache: dict[str, str] | None = None
@@ -44,8 +46,55 @@ def list_fonts() -> dict[str, str]:
                 if family and path.exists() and family not in fonts:
                     fonts[family] = str(path)
             winreg.CloseKey(key)
+    else:
+        fonts = _list_fonts_fontconfig() or _scan_font_dirs()
     _cache = dict(sorted(fonts.items()))
     return _cache
+
+
+_FONT_EXTS = {".ttf", ".otf", ".ttc", ".otc"}
+
+
+def _list_fonts_fontconfig() -> dict[str, str]:
+    """Linux / macOS：用 fc-list 枚举（与 libass/ffmpeg 实际使用的字体来源一致）。"""
+    fc = shutil.which("fc-list")
+    if not fc:
+        return {}
+    try:
+        out = subprocess.run(
+            [fc, "--format", "%{family}\t%{file}\n"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    fonts: dict[str, str] = {}
+    for line in out.splitlines():
+        if "\t" not in line:
+            continue
+        families, file = line.rsplit("\t", 1)
+        if Path(file).suffix.lower() not in _FONT_EXTS:
+            continue
+        # 一个字体可能有多个本地化族名（如 "Noto Sans SC,思源黑体"），全部登记
+        for family in families.split(","):
+            family = family.strip()
+            if family and family not in fonts:
+                fonts[family] = file
+    return fonts
+
+
+def _scan_font_dirs() -> dict[str, str]:
+    """无 fontconfig 时的兜底：扫描常见字体目录，以文件名作显示名。"""
+    dirs = [Path("/usr/share/fonts"), Path("/usr/local/share/fonts"), Path.home() / ".fonts",
+            Path.home() / ".local/share/fonts", Path("/Library/Fonts"), Path("/System/Library/Fonts"),
+            Path.home() / "Library/Fonts"]
+    fonts: dict[str, str] = {}
+    for d in dirs:
+        if not d.is_dir():
+            continue
+        for f in d.rglob("*"):
+            if f.suffix.lower() in _FONT_EXTS and f.stem not in fonts:
+                fonts[f.stem] = str(f)
+    return fonts
 
 
 def font_file(family: str) -> Path | None:
