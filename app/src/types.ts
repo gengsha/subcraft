@@ -32,6 +32,21 @@ export interface SubtitleTrack {
   style: SubtitleStyle
 }
 
+export interface TimingIssue {
+  index: number
+  type: 'overlap' | 'too_short' | 'too_long' | 'too_fast'
+  detail: string
+}
+
+export interface TimelineInfo {
+  split_at?: number
+  shifted?: number
+  fixed?: number
+  changes?: { index: number; before: number[]; after: number[] }[]
+  need_split?: { index: number; cuts: number[]; text: string }[]
+  synced?: string[]
+}
+
 export interface MediaInfo {
   path: string
   name: string
