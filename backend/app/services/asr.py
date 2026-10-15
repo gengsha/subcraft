@@ -149,6 +149,23 @@ def is_cuda_available() -> bool:
         return False
 
 
+def _load_wav(wav_path: Path):
+    """读取 ffmpeg 抽出的 16kHz 单声道 PCM 为 float32 数组直接喂给模型。
+
+    不让 faster-whisper 自己用 PyAV 解码：新版 PyAV（>=19）移除了 open(metadata_errors=)，
+    会导致 faster-whisper 1.2.x 识别直接 TypeError；音频本来就由 ffmpeg 抽好，无需二次解码。
+    """
+    import wave
+
+    import numpy as np
+
+    with wave.open(str(wav_path), "rb") as w:
+        if w.getsampwidth() != 2 or w.getnchannels() != 1:
+            return str(wav_path)  # 非预期格式交回 faster-whisper 自行解码
+        frames = w.readframes(w.getnframes())
+    return np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+
+
 def _resegment(segments: list[Segment], words: list[list[Word]] | None = None) -> list[Segment]:
     """按设置把过长的识别段切成适合上屏的短句（subtitle_max_units<=0 关闭）。"""
     max_units = float(store.get("subtitle_max_units", DEFAULT_MAX_UNITS) or 0)
@@ -206,7 +223,7 @@ class LocalWhisper:
         def _do_transcribe(m) -> tuple[list[Segment], str]:
             report(0.05, "识别中...")
             segments_iter, info = m.transcribe(
-                str(wav_path),
+                _load_wav(wav_path),
                 language=None if language in (None, "auto") else language,
                 vad_filter=True,
                 vad_parameters={"min_silence_duration_ms": 500},
