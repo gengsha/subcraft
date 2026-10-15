@@ -8,4 +8,3 @@ faster-whisper>=1.1.0
 nvidia-cublas-cu12>=12.4; sys_platform != "darwin"
 nvidia-cudnn-cu12>=9.1; sys_platform != "darwin"
 openai>=1.50
-pytest>=8.0
