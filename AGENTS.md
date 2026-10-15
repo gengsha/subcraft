@@ -45,3 +45,10 @@ cd app; npm run dev                                     # 开发启动
 - 识别断句在 `services/segmenter.py`（`resegment`），本地引擎用词级时间戳、云端按字数比例插值；翻译上下文/术语表在 `translator._build_prompt`
 - 时间轴操作在 `services/timeline.py`（纯函数：split/merge/shift/snap_to_cuts/check），MCP 时间轴工具与 CLI `retime` 共用；结构操作通过 `tools._paired` 同步到逐段对齐的其他轨
 - 前端注释与 UI 文案使用中文
+
+## 发布流程
+
+1. 改 `app/package.json`（及 `package-lock.json` 根版本）和 `backend/app/main.py` 的版本号，写 `release-notes/vX.Y.Z.md`。
+2. 合并到 master 后打 tag 推送：`git tag vX.Y.Z && git push origin vX.Y.Z`。
+3. `.github/workflows/release.yml` 自动：校验版本一致 → Windows 打包后端 exe + 下载 ffmpeg + 冒烟测试（启动、令牌 401）+ electron-builder zip/portable → Linux tar.gz → 创建 Release 并上传资产（Release 已存在则只覆盖资产）。
+4. 改打包相关文件的 PR 会跑同样的构建与冒烟测试，但不发布。`scripts/publish_release.py` 保留作手动兜底。
