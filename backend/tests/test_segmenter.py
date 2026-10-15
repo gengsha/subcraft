@@ -54,3 +54,23 @@ def test_duration_limit():
 def test_disabled_when_zero():
     segs = [Segment(start=0, end=20, text="很长" * 40)]
     assert resegment(segs, max_units=0) == segs
+
+
+def test_english_prefers_break_before_conjunction():
+    ws = "Hello everyone and welcome back to the channel today".split()
+    words = [Word(i * 0.3, i * 0.3 + 0.25, " " + w) for i, w in enumerate(ws)]
+    parts = split_words(words, max_units=14, max_duration=7)
+    assert parts[0].text == "Hello everyone"
+    assert not any(p.text.split()[-1].lower() in {"the", "to", "a"} for p in parts)
+
+
+def test_fontconfig_listing(monkeypatch):
+    from backend.app.services import fonts
+
+    class R:
+        stdout = "Noto Sans SC,思源黑体\t/f/NotoSansSC.otf\nDejaVu Sans\t/f/DejaVuSans.ttf\nBad\t/f/x.pcf\n"
+
+    monkeypatch.setattr(fonts.shutil, "which", lambda n: "/usr/bin/fc-list")
+    monkeypatch.setattr(fonts.subprocess, "run", lambda *a, **k: R())
+    got = fonts._list_fonts_fontconfig()
+    assert got == {"Noto Sans SC": "/f/NotoSansSC.otf", "思源黑体": "/f/NotoSansSC.otf", "DejaVu Sans": "/f/DejaVuSans.ttf"}
