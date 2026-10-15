@@ -336,6 +336,16 @@ def _transcribe(args: argparse.Namespace, media: Path, cb: ProgressCb,
     return track, meta
 
 
+def _read_glossary(args: argparse.Namespace) -> str | None:
+    path = getattr(args, "glossary", None)
+    if not path:
+        return None
+    p = Path(path)
+    if not p.is_file():
+        _fail(f"术语表文件不存在: {path}")
+    return p.read_text(encoding="utf-8-sig")
+
+
 def _translate(args: argparse.Namespace, src: SubtitleTrack, cb: ProgressCb,
                lo: float, hi: float) -> SubtitleTrack:
     from app.mcp.state import translation_style
@@ -348,6 +358,7 @@ def _translate(args: argparse.Namespace, src: SubtitleTrack, cb: ProgressCb,
         batch_size=int(store.get("translate_batch_size", 25) or 25),
         concurrency=int(store.get("translate_concurrency", 4) or 4),
         progress_cb=_scaled(cb, lo, hi, "[翻译] "),
+        glossary=_read_glossary(args),
     )
     if len(translated) != len(src.segments):
         _fail(f"翻译段数不对齐: 源 {len(src.segments)} / 译文 {len(translated)}")
@@ -558,6 +569,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", help="覆盖厂商默认模型名")
     p.add_argument("--media", help="关联视频（用于 ASS 画布尺寸与封装）")
     p.add_argument("--primary-target", action="store_true", help="双语以译文为主行（默认源语言为主行）")
+    p.add_argument("--glossary", help="术语表文件（每行「原文=译文」，留空用设置里的术语表）")
     _export_options(p)
     p.set_defaults(func=cmd_translate)
 
@@ -570,6 +582,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--provider", default="ai", choices=["ai", "deepl"])
     p.add_argument("--provider-id", help="指定已配置厂商 id")
     p.add_argument("--primary-target", action="store_true", help="双语以译文为主行（默认源语言为主行）")
+    p.add_argument("--glossary", help="术语表文件（每行「原文=译文」，留空用设置里的术语表）")
     _export_options(p)
     p.set_defaults(func=cmd_gen)
 
