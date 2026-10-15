@@ -178,12 +178,12 @@ Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可
 }
 ```
 
-**工具一览（21 个）**
+**工具一览（22 个）**
 
 | 分类 | 工具 |
 | --- | --- |
 | 环境 | `subcraft_status` 自检（ffmpeg/CUDA/已配厂商）、`subcraft_probe_media` 媒体探测、`subcraft_list_fonts` 字体列表 |
-| 生成 | `subcraft_transcribe` 语音识别、`subcraft_translate` AI 翻译、`subcraft_load_subtitle_file` 导入 srt/vtt/ass、`subcraft_generate_subtitles` 一键流水线 |
+| 生成 | `subcraft_transcribe` 语音识别、`subcraft_translate` AI 翻译、`subcraft_add_translation` 写入调用方 AI 自己的译文（免 API Key）、`subcraft_load_subtitle_file` 导入 srt/vtt/ass、`subcraft_generate_subtitles` 一键流水线 |
 | 编辑 | `subcraft_list_tracks`、`subcraft_get_segments`（分页/搜索）、`subcraft_edit_segments`（批量改文本与时间码）、`subcraft_delete_segments`、`subcraft_clean_empty_segments`、`subcraft_set_style` |
 | 导出 | `subcraft_build_ass`、`subcraft_export_subtitle_files`（srt/ass 单语+双语）、`subcraft_export_video`（soft 无损封装 / hard 烧录）、`subcraft_preview_frame`（真实烧录预览图） |
 | 任务/会话 | `subcraft_job_status`（长任务轮询）、`subcraft_save_project` / `subcraft_load_project`、`subcraft_clear_session` |
@@ -191,6 +191,7 @@ Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可
 要点：
 
 - **配置复用**：翻译厂商 API Key 直接复用桌面客户端「设置」里保存的 `%LOCALAPPDATA%\SubCraft\config.json`，MCP 只读不写；也可在调用时临时传 `api_key` / `base_url`。
+- **让 AI 自己当翻译（免 API Key）**：这是 GUI 没有的能力。没配置翻译厂商时，接入的 AI（Claude、Cursor 等）可以用 `subcraft_get_segments` 分页读原文，自己结合全片语境翻译，再通过 `subcraft_add_translation` 分批写回一条逐段对齐的翻译轨，然后照常导出或压制。人名、梗和语气的统一通常比逐批调接口更好；`subcraft_translate` 报「未配置」时也会提示走这条路。
 - **长任务**：识别/翻译/压制支持 `wait=false` 立即返回 `job_id`，再用 `subcraft_job_status` 轮询；`wait=true` 时按 MCP 协议上报进度。
 - **会话态**：字幕轨保存在 MCP 进程内存中（`t1`/`t2`...），跨会话用 `subcraft_save_project` / `subcraft_load_project` 落盘恢复。
 - **传输**：默认 stdio；`--transport streamable-http --port 47660` 可切换为 HTTP。
@@ -205,6 +206,8 @@ Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可
 .\.venv\Scripts\python.exe backend\cli.py gen video.mp4 -t zh --primary-target    # 双语以译文为主行
 .\.venv\Scripts\python.exe backend\cli.py transcribe video.mp4 -o out             # 只识别
 .\.venv\Scripts\python.exe backend\cli.py translate in.en.srt -t zh -o out        # 只翻译（含双语导出）
+.\.venv\Scripts\python.exe backend\cli.py dump in.en.srt -o src.txt               # 列出「序号. 原文」，交给 AI 自己翻译
+.\.venv\Scripts\python.exe backend\cli.py translate in.en.srt -t zh --translations zh.txt -o out  # 写回 AI 的译文，不调 API
 .\.venv\Scripts\python.exe backend\cli.py export -s zh.srt -s en.srt --media v.mp4 --video hard -o out
 .\.venv\Scripts\python.exe backend\cli.py preview -s zh.srt -s en.srt --media v.mp4 --time 12.5 -o f.jpg
 ```
@@ -213,7 +216,8 @@ Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可
 | --- | --- |
 | `status` / `probe` / `fonts` | 环境自检（ffmpeg/CUDA/厂商）、媒体探测、系统字体列表 |
 | `transcribe` | 语音识别并导出字幕文件（`--engine` / `--model` / `--lang`） |
-| `translate` | 翻译字幕文件并导出单语+双语（`--provider` / `--primary-target`） |
+| `translate` | 翻译字幕文件并导出单语+双语（`--provider` / `--primary-target` / `--glossary`；`--translations` 直接使用 AI 自己翻好的译文） |
+| `dump` | 按「序号. 文本」列出字幕，供 Codex / Claude Code 等终端 AI 读取后自行翻译 |
 | `gen` | 一条龙：识别 → 可选翻译 → 导出字幕 / 软封装 / 硬烧录 |
 | `export` | 用已有字幕文件导出字幕 / 封装 / 烧录（`-s` 可重复，`--primary` 指定主行） |
 | `preview` | 渲染指定时间点的真实烧录预览图（与硬字幕同一 ffmpeg 管线） |
@@ -247,7 +251,7 @@ npx vite build
 - **宿主进程**：Electron 33 + TypeScript，负责窗口管理、动态端口分配与 Python 子进程守护。
 - **前端界面**：React 18 + Zustand + Vite，集成 jassub (libass WASM) 实现字幕实时渲染。
 - **后端服务**：Python 3.13 + FastAPI，负责 faster-whisper ASR、多厂商 AI 翻译、ASS/SRT 格式构建与 ffmpeg 封装/压制。
-- **MCP 服务**：`backend/mcp_server.py`（stdio），复用后端 services 层把全链路暴露为 21 个 MCP 工具；会话轨道与后台任务池在 `backend/app/mcp/`。
+- **MCP 服务**：`backend/mcp_server.py`（stdio），复用后端 services 层把全链路暴露为 22 个 MCP 工具；会话轨道与后台任务池在 `backend/app/mcp/`。
 - **数据存储**：本地配置文件 `%LOCALAPPDATA%\SubCraft\config.json`，运行日志 `%APPDATA%\subcraft-app\backend.log`。
 - **本地安全**：后端只监听 `127.0.0.1`，并且每次启动由 Electron 生成随机令牌（`SUBCRAFT_TOKEN`），所有请求需携带令牌；CORS 只放行应用自身来源并校验 Host，防止浏览器中的网页跨站访问本地接口。手动 `python backend/run.py` 调试时不设令牌即不校验。
 
