@@ -19,6 +19,11 @@ on:
 permissions:
   contents: write
 
+env:
+  # Windows runner 控制台默认 cp1252，脚本里的中文输出会 UnicodeEncodeError
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
