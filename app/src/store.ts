@@ -1,6 +1,6 @@
 // 全局状态 (zustand)
 import { create } from 'zustand'
-import type { MediaInfo, SubtitleTrack, TaskState } from './types'
+import type { MediaInfo, SubtitleTrack, TaskState, TimingIssue } from './types'
 import { DEFAULT_STYLE } from './types'
 
 let uid = 0
@@ -16,6 +16,8 @@ interface ProjectState {
   task: (TaskState & { label?: string }) | null
   fonts: Record<string, string>
   seekTo: number | null  // 请求播放器跳转(秒)，消费后清零
+  issues: TimingIssue[]  // 当前轨时间轴问题（重叠/过短/过长/过快），由 TimelineTools 维护
+  setIssues: (issues: TimingIssue[]) => void
 
   setVideo: (path: string, media: MediaInfo) => void
   setTracks: (tracks: SubtitleTrack[]) => void
@@ -44,6 +46,8 @@ export const useStore = create<ProjectState>((set) => ({
   task: null,
   fonts: {},
   seekTo: null,
+  issues: [],
+  setIssues: (issues) => set({ issues }),
 
   setVideo: (videoPath, media) => set({ videoPath, media, tracks: [], activeTrackId: null, primaryTrackId: null }),
   setTracks: (tracks) => set({ tracks }),
@@ -85,7 +89,20 @@ export const useStore = create<ProjectState>((set) => ({
     })),
   setActiveTrack: (activeTrackId) => set({ activeTrackId }),
   setBilingual: (bilingual) => set({ bilingual }),
-  setPrimaryTrack: (primaryTrackId) => set({ primaryTrackId }),
+  // 主语言字号不应小于副语言：翻译轨默认字号是源轨 70%，设为主轨时与原主轨互换字号（颜色等各自保留）
+  setPrimaryTrack: (primaryTrackId) =>
+    set((s) => {
+      const next = s.tracks.find((t) => t.id === primaryTrackId)
+      const prev = s.tracks.find((t) => t.id === (s.primaryTrackId ?? s.tracks[0]?.id) && t.id !== primaryTrackId)
+      if (!next || !prev || next.style.font_size >= prev.style.font_size) return { primaryTrackId }
+      const big = prev.style.font_size, small = next.style.font_size
+      return {
+        primaryTrackId,
+        tracks: s.tracks.map((t) =>
+          t.id === next.id ? { ...t, style: { ...t.style, font_size: big } }
+            : t.id === prev.id ? { ...t, style: { ...t.style, font_size: small } } : t),
+      }
+    }),
   setTask: (task) => set({ task }),
   setFonts: (fonts) => set({ fonts }),
   requestSeek: (seekTo) => set({ seekTo }),
