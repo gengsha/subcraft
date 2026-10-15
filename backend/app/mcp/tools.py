@@ -507,8 +507,15 @@ def subcraft_load_subtitle_file(path: str, language: str | None = None, label: s
             duration = ffmpeg_tool.probe(video).duration
         except Exception:
             duration = segments[-1].end if segments else 0.0
+    style = None
+    if role == "translation":
+        # 译文轨按副语言样式载入（字号 0.7 倍 + 淡黄），与 subcraft_translate 一致；
+        # 优先以同一视频的源轨为基准，否则取会话中任一源轨，都没有则用默认样式
+        sources = [t for t in SESSION.all() if t.track.role == "source"]
+        base = next((t for t in sources if video and t.video_path == video), None) or (sources[0] if sources else None)
+        style = translation_style(base.track.style if base else None)
     st = SESSION.create(
-        segments, language=lang, role=role, label=label or "", video_path=video,
+        segments, language=lang, role=role, label=label or "", style=style, video_path=video,
         duration=duration or (segments[-1].end if segments else 0.0), origin="file",
     )
     return {
