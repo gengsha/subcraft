@@ -356,6 +356,8 @@ async def subcraft_translate(ctx: Context, track_id: str, target_lang: str, prov
         wait: False 时立即返回 job_id
 
     翻译轨会自动套用副语言样式（字号 0.7 倍、淡黄色），可用 subcraft_set_style 调整。
+    没有配置任何翻译厂商时，你（调用方 AI）可以自己翻译：subcraft_get_segments 分页读原文，
+    再用 subcraft_add_translation 分批写入译文，无需 API Key。
     """
     st = _track(track_id)
     if not st.track.segments:
@@ -368,10 +370,18 @@ async def subcraft_translate(ctx: Context, track_id: str, target_lang: str, prov
     conc = int(store.get("translate_concurrency", 4) or 4)
 
     def job(cb: ProgressCb) -> dict:
-        translated = translator.translate_segments(
-            st.track.segments, source_lang, target_lang, prov, provider_id,
-            api_key, base_url, model, batch_size=batch, concurrency=conc, progress_cb=cb,
-        )
+        try:
+            translated = translator.translate_segments(
+                st.track.segments, source_lang, target_lang, prov, provider_id,
+                api_key, base_url, model, batch_size=batch, concurrency=conc, progress_cb=cb,
+            )
+        except RuntimeError as e:
+            if "未配置" in str(e):
+                raise RuntimeError(
+                    f"{e}。也可以不用翻译厂商：由你自己翻译，subcraft_get_segments 读原文后"
+                    f"调用 subcraft_add_translation(source_track_id='{st.id}', target_lang='{target_lang}', ...) 写入"
+                ) from e
+            raise
         new = SESSION.create(
             translated, language=target_lang, role="translation",
             style=translation_style(st.track.style), video_path=st.video_path,
@@ -389,6 +399,83 @@ async def subcraft_translate(ctx: Context, track_id: str, target_lang: str, prov
             "subcraft_export_subtitle_files(bilingual=true) 导出双语字幕",
             "subcraft_export_video(mode='hard') 压制硬字幕成片",
             "subcraft_preview_frame 看一帧真实烧录效果",
+        ]
+    return out
+
+
+@tool
+def subcraft_add_translation(source_track_id: str, target_lang: str, translations: list,
+                             offset: int = 0, track_id: str | None = None,
+                             label: str | None = None) -> dict:
+    """写入你（调用方 AI）自己翻译好的译文，生成/补全一条与源轨逐段对齐的翻译轨。无需任何 API Key。
+
+    适合没有配置翻译厂商、或希望由你结合整片语境亲自翻译（人名、梗、语气统一）的场景。
+    推荐流程：subcraft_get_segments 分页读原文（每次 50~100 段）→ 翻译 → 本工具分批写入；
+    第一批不传 track_id 会新建翻译轨，后续批次传回返回的 track_id 继续写。
+
+    Args:
+        source_track_id: 源轨道 id
+        target_lang: 译文语言码，如 zh/en/ja
+        translations: 译文数组。字符串数组时第 i 个对应源段 offset+i；
+                      也可传 [{"index": 12, "text": "译文"}]（index 为 0 基源段序号）
+        offset: 字符串数组对应的起始段序号（0 基），分批写入时传本批第一段的 index
+        track_id: 已有翻译轨 id（续写）；留空新建
+        label: 新建轨道的显示名
+
+    时间轴完全沿用源轨；未写入的段保持为空，返回值里的 missing 列出仍缺译文的段序号。
+    """
+    st = _track(source_track_id)
+    src = st.track.segments
+    if not src:
+        _fail(f"轨道 {source_track_id} 没有字幕段")
+    if target_lang not in LANGUAGES or target_lang == "auto":
+        _fail(f"无效的目标语言码: {target_lang}")
+    if not isinstance(translations, list) or not translations:
+        _fail("translations 不能为空，示例: ['第一句译文', '第二句译文'] 或 [{'index': 0, 'text': '译文'}]")
+    if track_id:
+        tt = _track(track_id)
+        if len(tt.track.segments) != len(src):
+            _fail(f"轨道 {track_id} 与源轨段数不一致（{len(tt.track.segments)} / {len(src)}），不能续写")
+    else:
+        segs = [Segment(start=s.start, end=s.end, text="") for s in src]
+        tt = SESSION.create(
+            segs, language=target_lang, role="translation", label=label or "",
+            style=translation_style(st.track.style), video_path=st.video_path,
+            duration=st.duration, origin="agent",
+        )
+    invalid: list[dict] = []
+    applied = 0
+    for i, item in enumerate(translations):
+        if isinstance(item, dict):
+            idx, text = item.get("index"), item.get("text")
+        else:
+            idx, text = offset + i, item
+        try:
+            idx = int(idx)
+        except (TypeError, ValueError):
+            invalid.append({"item": item, "reason": "index 不是整数"})
+            continue
+        if not 0 <= idx < len(src):
+            invalid.append({"item": item, "reason": f"index 越界（0~{len(src) - 1}）"})
+            continue
+        if not isinstance(text, str):
+            invalid.append({"item": item, "reason": "text 必须是字符串"})
+            continue
+        tt.track.segments[idx].text = text.strip()
+        applied += 1
+    missing = [i for i, s in enumerate(tt.track.segments) if not s.text.strip() and src[i].text.strip()]
+    out = {
+        "track_id": tt.id, "source_track_id": st.id, "language": tt.track.language,
+        "applied": applied, "invalid": invalid, "segment_count": len(src),
+        "missing_count": len(missing), "missing": missing[:50],
+    }
+    if missing:
+        out["next_step"] = (f"继续 subcraft_get_segments(track_id='{st.id}', offset={missing[0]}) 读原文，"
+                            f"再 subcraft_add_translation(track_id='{tt.id}', ...) 写入")
+    else:
+        out["next_steps"] = [
+            "subcraft_export_subtitle_files(bilingual=true) 导出双语字幕",
+            "subcraft_export_video(mode='hard') 压制硬字幕成片",
         ]
     return out
 
