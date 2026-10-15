@@ -34,3 +34,35 @@ def test_deepl_host_selection():
     free = translator.DeepLTranslator("abc:fx")
     pro = translator.DeepLTranslator("abc")
     assert "api-free" in free.url and "api.deepl.com" in pro.url
+
+
+def test_parse_glossary():
+    g = translator.parse_glossary("# 注释\nTony Stark=托尼·斯塔克\nOpenAI => OpenAI\n坏行\nJarvis→贾维斯\n")
+    assert g == [("Tony Stark", "托尼·斯塔克"), ("OpenAI", "OpenAI"), ("Jarvis", "贾维斯")]
+
+
+def test_prompt_includes_context_and_relevant_terms_only():
+    p = translator._build_prompt(
+        ["Hi Tony."], "en", "zh", ["Previous line."],
+        [("Tony", "托尼"), ("Jarvis", "贾维斯")],
+    )
+    assert "Tony = 托尼" in p and "贾维斯" not in p
+    assert "Previous line." in p and "1. Hi Tony." in p
+
+
+def test_translate_segments_passes_context(monkeypatch):
+    calls = []
+
+    class Rich:
+        def translate_batch(self, texts, source_lang, target_lang, context=None, glossary=None):
+            calls.append((list(texts), list(context or []), glossary))
+            return [t.upper() for t in texts]
+
+    monkeypatch.setattr(translator, "_get_translator", lambda *a, **k: Rich())
+    segs = [Segment(start=i, end=i + 1, text=f"s{i}") for i in range(6)]
+    out = translator.translate_segments(segs, "en", "zh", batch_size=3, concurrency=1, glossary="s1=一")
+    assert [s.text for s in out] == [f"S{i}" for i in range(6)]
+    by_first = {c[0][0]: c for c in calls}
+    assert by_first["s0"][1] == []
+    assert by_first["s3"][1] == ["s0", "s1", "s2"]
+    assert by_first["s0"][2] == [("s1", "一")]
