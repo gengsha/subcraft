@@ -641,6 +641,82 @@ async def subcraft_generate_subtitles(ctx: Context, video_path: str, target_lang
     return out
 
 
+@tool
+async def subcraft_batch_process(ctx: Context, folder: str, target_lang: str | None = None,
+                                 mode: str = "media", out_dir: str | None = None,
+                                 recursive: bool = False, pattern: str | None = None,
+                                 formats: list[str] | None = None, export_video: str | None = None,
+                                 snap_cuts: bool = False, split_cuts: bool = False,
+                                 primary_target: bool = False,
+                                 bilingual: bool = True, engine: str = "local",
+                                 whisper_model: str | None = None, source_lang: str | None = None,
+                                 provider: str = "ai", provider_id: str | None = None,
+                                 skip_existing: bool = True, stop_on_error: bool = False,
+                                 limit: int = 0, dry_run: bool = False, wait: bool = True) -> dict:
+    """批量处理整个文件夹（课程、剧集）：逐个识别 → 可选贴齐镜头切点 → 可选翻译 → 导出字幕 / 成片。
+
+    按集号自然排序（EP2 在 EP10 前），识别模型只加载一次；单个文件失败只记录、不影响其余；
+    重跑时自动跳过已完成的文件（断点续跑）；结束后在输出目录写 subcraft_batch_report.json。
+    建议先 dry_run=True 看清要处理哪些文件，或 limit=1 试跑一集确认效果。
+
+    Args:
+        folder: 文件夹绝对路径
+        target_lang: 目标语言码；留空只识别（mode="subs" 时必填）
+        mode: "media"=处理音视频（完整流水线）；"subs"=翻译文件夹里已有的字幕文件（同名视频自动关联）
+        out_dir: 输出根目录，默认写回各文件所在目录；recursive 时保留子目录结构
+        recursive: 是否扫描子目录
+        pattern: 文件名通配，如 "*.mp4"、"EP*"
+        formats: 字幕格式数组 "srt" / "ass"，默认两者
+        export_video: "soft"=每集封装软字幕 MKV；"hard"=每集烧录硬字幕 MP4（慢）；留空=不出成片
+        snap_cuts: 导出前让字幕贴齐镜头切点（需要视频）
+        split_cuts: 贴齐后仍跨镜头的段按切点自动拆开（隐含 snap_cuts；在翻译前做，译文自然同步）
+        primary_target: 双语以译文为主行
+        bilingual: 是否导出双语合并字幕
+        engine / whisper_model / source_lang: 识别参数，同 subcraft_transcribe
+        provider / provider_id: 翻译厂商，同 subcraft_translate
+        skip_existing: 跳过产物已存在的文件（默认 True）
+        stop_on_error: 遇到失败立即停止（默认继续）
+        limit: 只处理前 N 个（0=全部）
+        dry_run: 只列出将处理 / 跳过的文件，不执行
+        wait: False 时立即返回 job_id，用 subcraft_job_status 查询（整批可能耗时很久，推荐）
+
+    返回 total / done / skipped / failed 统计、逐文件结果（输出文件、段数、错误）与报告路径。
+    批量结果直接落盘，不会把轨道加入会话。
+    """
+    from ..services import batch
+
+    root = _existing(folder, "文件夹")
+    opts = batch.BatchOptions(
+        mode=mode, target=target_lang, out_dir=out_dir, recursive=recursive, pattern=pattern,
+        engine=engine, whisper_model=whisper_model, source_lang=source_lang,
+        provider=provider, provider_id=provider_id, primary_target=primary_target,
+        bilingual=bilingual, formats=formats or ["srt", "ass"], video=export_video,
+        snap_cuts=snap_cuts, split_cuts=split_cuts, skip_existing=skip_existing,
+        stop_on_error=stop_on_error, limit=limit,
+    )
+    try:
+        batch.validate(opts)
+        if dry_run:
+            return _slim_batch(batch.run_batch(root, opts, dry_run=True))
+        if not batch.find_inputs(root, opts):
+            _fail(f"文件夹里没有可处理的{'字幕' if opts.mode == 'subs' else '音视频'}文件: {root}"
+                  + ("（可设 recursive=True 扫描子目录）" if not recursive else ""))
+    except batch.BatchError as e:
+        _fail(str(e))
+    out = await _run_job(ctx, "批量处理", lambda cb: _slim_batch(batch.run_batch(root, opts, cb)), wait)
+    return out
+
+
+def _slim_batch(report: dict) -> dict:
+    """MCP 返回值瘦身：去掉堆栈，逐文件只保留关键字段。"""
+    keep = ("index", "relative", "status", "error", "language", "segments", "files", "video",
+            "snap", "elapsed_sec", "out_dir")
+    report = dict(report)
+    report["items"] = [{k: r[k] for k in keep if k in r} for r in report.get("items", [])]
+    report.pop("options", None)
+    return report
+
+
 # ---------------------------------------------------------------- 查看与编辑
 
 @tool

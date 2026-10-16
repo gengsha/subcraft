@@ -22,6 +22,7 @@ INSTRUCTIONS = """SubCraft 字幕生成器：把视频变成字幕文件与带�
 6. subcraft_export_subtitle_files（srt/ass）或 subcraft_export_video（soft 无损封装 / hard 烧录成片）
 
 想一步到位就用 subcraft_generate_subtitles：识别 → 翻译 → 导出字幕（可选直接出成片）。
+整个文件夹（课程、剧集）用 subcraft_batch_process：先 dry_run=true 看清单、limit=1 试跑，再 wait=false 跑整批并用 subcraft_job_status 轮询；重跑会自动跳过已完成的文件。
 
 要点：
 - 识别/翻译/压制是长任务。客户端调用有超时限制时传 wait=false 立即拿 job_id，再用 subcraft_job_status 轮询；wait=true 时会持续上报进度。

@@ -251,7 +251,7 @@ def test_job_runner_records_progress_and_result():
         time.sleep(0.05)
     assert snapshot["status"] == "done" and snapshot["result"] == {"ok": True}
     assert JOBS.view(jid).get("result") is None        # 轮询视图默认不带 result
-    assert JOBS.recent(5)[0]["job_id"] == jid
+    assert JOBS.recent(5)[-1]["job_id"] == jid           # 按提交顺序，最新的在最后
 
 
 def test_run_job_wait_and_detach():

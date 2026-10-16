@@ -59,6 +59,7 @@
   - 软字幕封装 (MKV)：无损封装视频流与 ASS / SRT 字幕轨，无需重新编码。
   - 独立字幕文件：支持导出单轨或双语合并的 SRT / ASS 文件。
 - **MCP 服务**：内置 Model Context Protocol 服务端，把识别/翻译/校对/样式/导出全链路开放给 Claude、Cursor、Qoder 等 AI 客户端，一句话即可驱动字幕生产。
+- **批量处理**：CLI `batch` / MCP `subcraft_batch_process` 一次处理整个文件夹（课程、剧集），按集号排序、单集失败不中断、重跑自动跳过已完成的文件。
 
 ---
 
@@ -189,12 +190,12 @@ Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可
 }
 ```
 
-**工具一览（27 个）**
+**工具一览（28 个）**
 
 | 分类 | 工具 |
 | --- | --- |
 | 环境 | `subcraft_status` 自检（ffmpeg/CUDA/已配厂商）、`subcraft_probe_media` 媒体探测、`subcraft_list_fonts` 字体列表 |
-| 生成 | `subcraft_transcribe` 语音识别、`subcraft_translate` AI 翻译、`subcraft_add_translation` 写入调用方 AI 自己的译文（免 API Key）、`subcraft_load_subtitle_file` 导入 srt/vtt/ass、`subcraft_generate_subtitles` 一键流水线 |
+| 生成 | `subcraft_transcribe` 语音识别、`subcraft_translate` AI 翻译、`subcraft_add_translation` 写入调用方 AI 自己的译文（免 API Key）、`subcraft_load_subtitle_file` 导入 srt/vtt/ass、`subcraft_generate_subtitles` 一键流水线、`subcraft_batch_process` 整个文件夹批量处理（课程/剧集，断点续跑） |
 | 编辑 | `subcraft_list_tracks`、`subcraft_get_segments`（分页/搜索）、`subcraft_edit_segments`（批量改文本与时间码）、`subcraft_delete_segments`、`subcraft_clean_empty_segments`、`subcraft_set_style` |
 | 时间轴 | `subcraft_split_segment` 拆分（支持「前半\|后半」与指定切点）、`subcraft_merge_segments` 合并、`subcraft_shift_track` 整轨/区间平移与缩放、`subcraft_snap_to_cuts` 检测镜头切点让字幕不跨镜头、`subcraft_check_timing` 检查重叠/过短/过长/阅读速度并可一键修重叠 |
 | 导出 | `subcraft_build_ass`、`subcraft_export_subtitle_files`（srt/ass 单语+双语）、`subcraft_export_video`（soft 无损封装 / hard 烧录）、`subcraft_preview_frame`（真实烧录预览图） |
@@ -205,6 +206,7 @@ Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可
 - **配置复用**：翻译厂商 API Key 直接复用桌面客户端「设置」里保存的 `%LOCALAPPDATA%\SubCraft\config.json`，MCP 只读不写；也可在调用时临时传 `api_key` / `base_url`。
 - **让 AI 自己当翻译（免 API Key）**：这是 GUI 没有的能力。没配置翻译厂商时，接入的 AI（Claude、Cursor 等）可以用 `subcraft_get_segments` 分页读原文，自己结合全片语境翻译，再通过 `subcraft_add_translation` 分批写回一条逐段对齐的翻译轨，然后照常导出或压制。人名、梗和语气的统一通常比逐批调接口更好；`subcraft_translate` 报「未配置」时也会提示走这条路。
 - **时间轴由 AI 精修**：结构操作（拆分、合并、平移）会自动同步到与之逐段对齐的译文轨，双语不会错位；`subcraft_edit_segments` 改完会校验重叠、过短、过长和阅读速度，因重排导致序号变化时也会返回新旧序号对照。典型用法：先 `subcraft_snap_to_cuts` 自动贴齐镜头切点，剩下跨镜头的长句按返回的 `need_split` 用 `subcraft_split_segment` 在切点处拆开。
+- **批量处理**：`subcraft_batch_process` 对整个文件夹（可递归）按集号自然排序逐个处理；`mode="subs"` 则翻译文件夹里已有的字幕。建议先 `dry_run=true` 看清要处理哪些文件、或 `limit=1` 试跑一集；整批耗时长，推荐 `wait=false` 再用 `subcraft_job_status` 轮询。
 - **长任务**：识别/翻译/压制支持 `wait=false` 立即返回 `job_id`，再用 `subcraft_job_status` 轮询；`wait=true` 时按 MCP 协议上报进度。
 - **会话态**：字幕轨保存在 MCP 进程内存中（`t1`/`t2`...），跨会话用 `subcraft_save_project` / `subcraft_load_project` 落盘恢复。
 - **传输**：默认 stdio；`--transport streamable-http --port 47660` 可切换为 HTTP。
@@ -224,6 +226,8 @@ Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可
 .\.venv\Scripts\python.exe backend\cli.py retime in.srt --snap-cuts --media v.mp4 --split "6@9.54:前半|后半"  # 时间轴精修
 .\.venv\Scripts\python.exe backend\cli.py export -s zh.srt -s en.srt --media v.mp4 --video hard -o out
 .\.venv\Scripts\python.exe backend\cli.py preview -s zh.srt -s en.srt --media v.mp4 --time 12.5 -o f.jpg
+.\.venv\Scripts\python.exe backend\cli.py batch D:\课程 -r -t zh --split-cuts --video hard -o D:\课程_字幕  # 整个文件夹批量
+.\.venv\Scripts\python.exe backend\cli.py batch D:\字幕 --subs -t zh                  # 批量翻译已有字幕
 ```
 
 | 命令 | 说明 |
@@ -236,9 +240,19 @@ Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可
 | `gen` | 一条龙：识别 → 可选翻译 → 导出字幕 / 软封装 / 硬烧录 |
 | `export` | 用已有字幕文件导出字幕 / 封装 / 烧录（`-s` 可重复，`--primary` 指定主行） |
 | `preview` | 渲染指定时间点的真实烧录预览图（与硬字幕同一 ffmpeg 管线） |
+| `batch` | 整个文件夹批量处理（见下） |
 
 约定：进度走 stderr、结果走 stdout；`--json` 输出机器可读 JSON；预期内错误退出码 2；
 翻译凭据复用桌面客户端本地配置；非主轨自动套副语言样式（字号 0.7 倍 + 淡黄）。
+
+**批量处理（课程 / 剧集）**：`batch <文件夹>` 对每个音视频依次「识别 →（可选）贴齐镜头切点 →（可选）翻译 → 导出字幕 / 成片」。
+
+- 按集号自然排序（`EP2` 在 `EP10` 前）；Whisper 模型只加载一次，后续各集直接复用。
+- `-r` 递归子目录，配合 `-o` 时输出保留原目录结构；`--pattern "*.mp4"` 过滤；`--limit 1` 先试跑一集；`--dry-run` 只列清单。
+- **断点续跑**：产物已存在的文件自动跳过，中断或个别失败后重跑同一条命令即可（`--force` 全部重做）。
+- **单集失败不中断**：错误记进报告继续下一集（`--stop-on-error` 改为立即停止）；结束后在输出目录写 `subcraft_batch_report.json`。
+- `--subs`：处理已有字幕文件（如课程自带英文 srt），只翻译 + 导出；同名视频自动关联，用于画布尺寸、贴齐切点与 `--video` 出片。
+- `--split-cuts`：贴齐后仍跨镜头的字幕按切点自动拆开，在翻译之前完成，译文自然逐段对齐。
 
 ---
 
@@ -266,7 +280,7 @@ npx vite build
 - **宿主进程**：Electron 33 + TypeScript，负责窗口管理、动态端口分配与 Python 子进程守护。
 - **前端界面**：React 18 + Zustand + Vite，集成 jassub (libass WASM) 实现字幕实时渲染。
 - **后端服务**：Python 3.13 + FastAPI，负责 faster-whisper ASR、多厂商 AI 翻译、ASS/SRT 格式构建与 ffmpeg 封装/压制。
-- **MCP 服务**：`backend/mcp_server.py`（stdio），复用后端 services 层把全链路暴露为 27 个 MCP 工具；会话轨道与后台任务池在 `backend/app/mcp/`。
+- **MCP 服务**：`backend/mcp_server.py`（stdio），复用后端 services 层把全链路暴露为 28 个 MCP 工具；会话轨道与后台任务池在 `backend/app/mcp/`。
 - **数据存储**：本地配置文件 `%LOCALAPPDATA%\SubCraft\config.json`，运行日志 `%APPDATA%\subcraft-app\backend.log`。
 - **本地安全**：后端只监听 `127.0.0.1`，并且每次启动由 Electron 生成随机令牌（`SUBCRAFT_TOKEN`），所有请求需携带令牌；CORS 只放行应用自身来源并校验 Host，防止浏览器中的网页跨站访问本地接口。手动 `python backend/run.py` 调试时不设令牌即不校验。
 
@@ -329,6 +343,7 @@ A: 选中的字体可能缺少对应语言的字形。请在样式面板中选�
   - Lossless Softsub (MKV): Direct stream copy with embedded ASS and fallback SRT tracks.
   - Subtitle Files: Standalone or merged bilingual `.srt` / `.ass` files.
 - **MCP Server**: Built-in Model Context Protocol server exposing the whole pipeline (ASR, translation, editing, styling, export) to AI clients such as Claude, Cursor and Qoder.
+- **Batch Processing**: CLI `batch` / MCP `subcraft_batch_process` handle a whole folder (courses, series) in episode order; one failure doesn't stop the run, and reruns skip finished files.
 
 ---
 
@@ -454,19 +469,21 @@ Register it in your AI client's MCP config (adjust paths to your checkout):
 }
 ```
 
-**Tools (21)**
+**Tools (28)**
 
 | Group | Tools |
 | --- | --- |
 | Environment | `subcraft_status` self-check (ffmpeg/CUDA/configured providers), `subcraft_probe_media`, `subcraft_list_fonts` |
-| Generation | `subcraft_transcribe` ASR, `subcraft_translate` AI translation, `subcraft_load_subtitle_file` (srt/vtt/ass), `subcraft_generate_subtitles` one-shot pipeline |
+| Generation | `subcraft_transcribe` ASR, `subcraft_translate` AI translation, `subcraft_add_translation` (write the calling AI's own translation, no API key), `subcraft_load_subtitle_file` (srt/vtt/ass), `subcraft_generate_subtitles` one-shot pipeline, `subcraft_batch_process` whole-folder batch (courses/series, resumable) |
 | Editing | `subcraft_list_tracks`, `subcraft_get_segments` (paging/search), `subcraft_edit_segments` (batch text & timecode edits), `subcraft_delete_segments`, `subcraft_clean_empty_segments`, `subcraft_set_style` |
+| Timeline | `subcraft_split_segment`, `subcraft_merge_segments`, `subcraft_shift_track` (shift/scale), `subcraft_snap_to_cuts` (keep subtitles from crossing shot cuts), `subcraft_check_timing` (overlaps/too short/too long/reading speed) |
 | Export | `subcraft_build_ass`, `subcraft_export_subtitle_files` (mono + bilingual srt/ass), `subcraft_export_video` (lossless softsub / burned hardsub), `subcraft_preview_frame` (real burn-in preview image) |
 | Jobs & session | `subcraft_job_status` (poll long tasks), `subcraft_save_project` / `subcraft_load_project`, `subcraft_clear_session` |
 
 Notes:
 
 - **Config reuse**: translation provider API keys are read from the desktop app's local config (`%LOCALAPPDATA%\SubCraft\config.json`); the MCP server never writes it. Per-call `api_key` / `base_url` overrides are also accepted.
+- **Batch**: `subcraft_batch_process` walks a folder (optionally recursive) in natural episode order; `mode="subs"` translates existing subtitle files instead. Try `dry_run=true` or `limit=1` first; whole batches are long, so prefer `wait=false` plus `subcraft_job_status`.
 - **Long tasks**: ASR/translation/encoding accept `wait=false` to return a `job_id` immediately (poll with `subcraft_job_status`); with `wait=true` progress is reported over the MCP protocol.
 - **Session state**: tracks live in the MCP process memory (`t1`, `t2`, ...); persist across sessions with `subcraft_save_project` / `subcraft_load_project`.
 - **Transport**: stdio by default; `--transport streamable-http --port 47660` switches to HTTP.
@@ -484,6 +501,8 @@ Run the whole pipeline straight from a terminal — no desktop app, no AI client
 .\.venv\Scripts\python.exe backend\cli.py translate in.en.srt -t zh -o out        # translate only (plus bilingual export)
 .\.venv\Scripts\python.exe backend\cli.py export -s zh.srt -s en.srt --media v.mp4 --video hard -o out
 .\.venv\Scripts\python.exe backend\cli.py preview -s zh.srt -s en.srt --media v.mp4 --time 12.5 -o f.jpg
+.\.venv\Scripts\python.exe backend\cli.py batch D:\course -r -t zh --split-cuts --video hard -o D:\course_subs  # whole folder
+.\.venv\Scripts\python.exe backend\cli.py batch D:\subs --subs -t zh                  # batch-translate existing subtitles
 ```
 
 | Command | Description |
@@ -494,10 +513,20 @@ Run the whole pipeline straight from a terminal — no desktop app, no AI client
 | `gen` | One-shot pipeline: ASR → optional translation → subtitle files / softsub / hardsub |
 | `export` | Export/mux/burn from existing subtitle files (`-s` repeatable, `--primary` picks the main line) |
 | `preview` | Render a real burn-in preview frame (same ffmpeg pipeline as hardsub) |
+| `batch` | Process a whole folder (see below) |
 
 Conventions: progress on stderr, results on stdout; `--json` for machine-readable output;
 expected errors exit with code 2; translation credentials are reused from the desktop app's
 local config; non-primary tracks automatically get the secondary style (0.7x size, pale yellow).
+
+**Batch processing (courses / series)**: `batch <folder>` runs ASR → optional shot-cut snapping → optional translation → subtitle files / video for every media file.
+
+- Natural episode order (`EP2` before `EP10`); the Whisper model is loaded once and reused.
+- `-r` recurses into subfolders and, with `-o`, mirrors the folder structure; `--pattern "*.mp4"` filters; `--limit 1` for a trial run; `--dry-run` only lists the plan.
+- **Resumable**: files whose outputs already exist are skipped, so just rerun the same command after an interruption or failure (`--force` redoes everything).
+- **One failure doesn't stop the batch**: errors are recorded and the next file runs (`--stop-on-error` to halt); a `subcraft_batch_report.json` is written to the output folder.
+- `--subs` processes existing subtitle files (e.g. a course's English srt) — translate + export only; a same-named video is picked up for canvas size, cut snapping and `--video`.
+- `--split-cuts` splits subtitles that still cross a shot cut after snapping, before translation, so the translation stays aligned.
 
 ---
 
@@ -525,7 +554,7 @@ npx vite build
 - **Host (Main Process)**: Electron 33 + TypeScript for process lifecycle, dynamic port binding, and native file dialogs.
 - **Frontend (Renderer Process)**: React 18 + Zustand + Vite with jassub (libass WASM) subtitle rendering.
 - **Backend Services**: Python 3.13 + FastAPI for faster-whisper ASR, LLM translation, ASS/SRT formatting, and ffmpeg processing.
-- **MCP Server**: `backend/mcp_server.py` (stdio) reuses the backend service layer to expose 21 MCP tools; session tracks and the background job pool live in `backend/app/mcp/`.
+- **MCP Server**: `backend/mcp_server.py` (stdio) reuses the backend service layer to expose 28 MCP tools; session tracks and the background job pool live in `backend/app/mcp/`.
 - **Local Security**: The backend binds to `127.0.0.1` and requires a random per-launch token (`SUBCRAFT_TOKEN`) generated by Electron; CORS only allows the app's own origins and the Host header is validated, so web pages in your browser cannot call the local API. When running `python backend/run.py` manually without the token, auth is skipped for debugging.
 
 ---
