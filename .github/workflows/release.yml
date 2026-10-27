@@ -10,6 +10,8 @@ on:
     paths:
       - .github/workflows/release.yml
       - backend/build_exe.py
+      - backend/build_cli.py
+      - backend/subcraft_entry.py
       - backend/run.py
       - backend/requirements.txt
       - app/package.json
@@ -147,9 +149,60 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
+  cli:
+    # 纯命令行发行版（CLI + MCP，无桌面客户端）：PyInstaller onedir，不往临时目录解压
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: SubCraft-CLI-${{ needs.version.outputs.version }}-win-x64.zip
+          - os: ubuntu-latest
+            asset: SubCraft-CLI-${{ needs.version.outputs.version }}-linux-x64.tar.gz
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: 安装依赖（不含 CUDA 包，含 MCP SDK）
+        run: |
+          grep -v -E '^nvidia-' backend/requirements.txt > req-nocuda.txt
+          python -m pip install -r req-nocuda.txt "mcp>=1.9"
+      - name: 打包 subcraft 命令行
+        run: python backend/build_cli.py
+      - name: 冒烟测试：CLI 能启动、MCP 注册全部工具
+        working-directory: backend/dist/subcraft
+        run: |
+          ./subcraft --help > /dev/null
+          ./subcraft status
+          ./subcraft mcp --list-tools | tee tools.txt
+          grep -q "共 28 个工具" tools.txt
+          rm tools.txt
+      - name: 压缩
+        working-directory: backend/dist
+        run: |
+          cp ../../LICENSE subcraft/
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            7z a -tzip "${{ matrix.asset }}" subcraft > /dev/null
+          else
+            tar czf "${{ matrix.asset }}" subcraft
+          fi
+          ls -la "${{ matrix.asset }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ runner.os }}
+          path: backend/dist/${{ matrix.asset }}
+          if-no-files-found: error
+          compression-level: 0
+
   publish:
     if: github.ref_type == 'tag'
-    needs: [version, windows, linux]
+    needs: [version, windows, linux, cli]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

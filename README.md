@@ -84,6 +84,17 @@ python3 -m pip install -r resources/backend/requirements.txt
 ./subcraft-app
 ```
 
+#### 纯命令行版（CLI + MCP，不含桌面客户端）
+只想在终端、脚本或 AI 客户端里用，可下载 `SubCraft-CLI-x.x.x-win-x64.zip` / `SubCraft-CLI-x.x.x-linux-x64.tar.gz`（不含 Electron，免安装，运行时不往临时目录解压）：
+```bash
+subcraft status                          # 环境自检
+subcraft gen video.mp4 -t zh --video hard
+subcraft mcp                             # 以 stdio 方式启动 MCP 服务
+```
+- MCP 客户端配置：`{"subcraft": {"command": "D:/tools/subcraft/subcraft.exe", "args": ["mcp"]}}`
+- **便携模式**：在 `subcraft` 可执行文件旁新建 `data` 文件夹，配置、缓存与 Whisper 模型都会放进去，不写用户目录；删掉整个文件夹即彻底清理。
+- 仅 CPU 识别；ffmpeg 不随包分发：Windows 首次使用自动下载到同目录 `tools/`，Linux 请 `sudo apt install ffmpeg`。
+
 #### 源码运行（开发模式）
 **环境要求**：
 - Python 3.13+
@@ -262,6 +273,9 @@ Claude Desktop / Cursor / Qoder / Cline 等 AI 客户端，用自然语言即可
 # 1. 编译独立 Python 后端 (输出至 backend/dist/subcraft-backend.exe)
 .\.venv\Scripts\python.exe backend\build_exe.py --no-cuda
 
+# 1b. 可选：打包纯命令行版 (输出至 backend/dist/subcraft/)
+.\.venv\Scripts\python.exe backend\build_cli.py
+
 # 2. 构建 Windows 安装包与便携包 (输出至 release/)
 cd app
 npm run pack
@@ -366,6 +380,17 @@ python3 -m pip install -r resources/backend/requirements.txt
 # 3. Run application
 ./subcraft-app
 ```
+
+#### Command-line Edition (CLI + MCP, no desktop app)
+For terminals, scripts and AI clients, download `SubCraft-CLI-x.x.x-win-x64.zip` / `SubCraft-CLI-x.x.x-linux-x64.tar.gz` (no Electron, no install, nothing extracted to temp on each run):
+```bash
+subcraft status                          # environment check
+subcraft gen video.mp4 -t zh --video hard
+subcraft mcp                             # start the MCP server over stdio
+```
+- MCP client config: `{"subcraft": {"command": "D:/tools/subcraft/subcraft.exe", "args": ["mcp"]}}`
+- **Portable mode**: create a `data` folder next to the `subcraft` executable and config, cache and Whisper models stay inside it instead of your user profile; delete the folder to clean up completely.
+- CPU-only recognition; ffmpeg is not bundled: on Windows it is downloaded to `tools/` next to the executable on first use, on Linux run `sudo apt install ffmpeg`.
 
 #### From Source (Development)
 **Prerequisites**:
@@ -535,6 +560,9 @@ local config; non-primary tracks automatically get the secondary style (0.7x siz
 ```powershell
 # Build standalone Python backend
 .\.venv\Scripts\python.exe backend\build_exe.py --no-cuda
+
+# Optional: build the command-line edition (output: backend/dist/subcraft/)
+.\.venv\Scripts\python.exe backend\build_cli.py
 
 # Package Windows desktop app
 cd app

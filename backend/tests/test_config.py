@@ -85,3 +85,29 @@ def test_system_status_and_cuda_check():
     assert isinstance(res["cuda_available"], bool)
     assert res["cuda_available"] == asr.is_cuda_available()
 
+
+
+def _fake_frozen(monkeypatch, exe_dir):
+    import sys
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(exe_dir / "subcraft"))
+
+
+def test_frozen_cli_uses_portable_data_dir(tmp_path, monkeypatch):
+    """打包版可执行文件旁有 data 目录时进入便携模式；SUBCRAFT_DATA_DIR 仍优先。"""
+    from backend.app import config
+    monkeypatch.delenv("SUBCRAFT_DATA_DIR", raising=False)
+    _fake_frozen(monkeypatch, tmp_path)
+    assert config.portable_data_dir() is None
+    (tmp_path / "data").mkdir()
+    assert config.data_dir() == tmp_path / "data"
+    monkeypatch.setenv("SUBCRAFT_DATA_DIR", str(tmp_path / "other"))
+    assert config.data_dir() == tmp_path / "other"
+
+
+def test_frozen_tools_dir_next_to_executable(tmp_path, monkeypatch):
+    """打包版 ffmpeg 等工具放在可执行文件旁，而不是 onefile 的临时解压目录。"""
+    from backend.app import config
+    monkeypatch.delenv("SUBCRAFT_TOOLS_DIR", raising=False)
+    _fake_frozen(monkeypatch, tmp_path)
+    assert config.tools_dir() == tmp_path / "tools"
