@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -13,10 +14,24 @@ def project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
+def frozen_dir() -> Path | None:
+    """PyInstaller 打包后可执行文件所在目录；源码运行时返回 None。"""
+    return Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else None
+
+
+def portable_data_dir() -> Path | None:
+    """便携模式：打包版可执行文件旁存在 data 目录时，配置/缓存/模型都放进去，不写用户目录。"""
+    d = frozen_dir()
+    return d / "data" if d and (d / "data").is_dir() else None
+
+
 def data_dir() -> Path:
     override = os.environ.get("SUBCRAFT_DATA_DIR")
     if override:
         return Path(override)
+    portable = portable_data_dir()
+    if portable:
+        return portable
     local = os.environ.get("LOCALAPPDATA")
     base = Path(local) if local else Path.home() / ".config"
     return base / APP_NAME
@@ -26,8 +41,10 @@ def tools_dir() -> Path:
     override = os.environ.get("SUBCRAFT_TOOLS_DIR")
     if override:
         return Path(override)
-    # 开发模式：项目根目录/tools；打包后由 Electron 设置 SUBCRAFT_TOOLS_DIR
-    return project_root() / "tools"
+    # 开发模式：项目根目录/tools；桌面版由 Electron 设置 SUBCRAFT_TOOLS_DIR；
+    # 独立打包的 CLI 用可执行文件旁的 tools（onefile 的 project_root 在临时解压目录里，不能用）
+    d = frozen_dir()
+    return (d / "tools") if d else project_root() / "tools"
 
 
 def work_dir() -> Path:
