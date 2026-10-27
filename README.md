@@ -85,7 +85,7 @@ python3 -m pip install -r resources/backend/requirements.txt
 ```
 
 #### 纯命令行版（CLI + MCP，不含桌面客户端）
-只想在终端、脚本或 AI 客户端里用，可下载 `SubCraft-CLI-x.x.x-win-x64.zip` / `SubCraft-CLI-x.x.x-linux-x64.tar.gz`（体积约为桌面版一半，免安装、运行时不往临时目录解压）：
+只想在终端、脚本或 AI 客户端里用，可下载 `SubCraft-CLI-x.x.x-win-x64.zip` / `SubCraft-CLI-x.x.x-linux-x64.tar.gz`（不含 Electron，免安装，运行时不往临时目录解压）：
 ```bash
 subcraft status                          # 环境自检
 subcraft gen video.mp4 -t zh --video hard
@@ -382,7 +382,7 @@ python3 -m pip install -r resources/backend/requirements.txt
 ```
 
 #### Command-line Edition (CLI + MCP, no desktop app)
-For terminals, scripts and AI clients, download `SubCraft-CLI-x.x.x-win-x64.zip` / `SubCraft-CLI-x.x.x-linux-x64.tar.gz` (about half the size, no install, nothing extracted to temp on each run):
+For terminals, scripts and AI clients, download `SubCraft-CLI-x.x.x-win-x64.zip` / `SubCraft-CLI-x.x.x-linux-x64.tar.gz` (no Electron, no install, nothing extracted to temp on each run):
 ```bash
 subcraft status                          # environment check
 subcraft gen video.mp4 -t zh --video hard
