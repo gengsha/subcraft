@@ -159,7 +159,7 @@ jobs:
           - os: windows-latest
             asset: SubCraft-CLI-${{ needs.version.outputs.version }}-win-x64.zip
           - os: ubuntu-latest
-            asset: SubCraft-CLI-${{ needs.version.outputs.version }}-linux-x64.tar.gz
+            asset: SubCraft-CLI-${{ needs.version.outputs.version }}-linux-x64.tar.xz
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -183,14 +183,26 @@ jobs:
           ./subcraft mcp --list-tools | tee tools.txt
           grep -q "共 28 个工具" tools.txt
           rm tools.txt
+      - name: 端到端冒烟：真实 MCP 客户端调用打包版（Windows 追加 SAPI 合成语音 + tiny 模型识别）
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            EXE=backend/dist/subcraft/subcraft.exe; EXTRA="--asr"
+            # 测试用 ffmpeg 下载到仓库 tools/（冒烟脚本与打包版都从这里找），不进发布包
+            export SUBCRAFT_TOOLS_DIR="$(pwd -W)/tools"
+            python -c "import sys; sys.path.insert(0, 'backend'); from app.services import ffmpeg_tool; print(ffmpeg_tool.ensure_ffmpeg())"
+          else
+            sudo apt-get install -y -qq ffmpeg > /dev/null; EXE=backend/dist/subcraft/subcraft; EXTRA=""
+          fi
+          python scripts/mcp_smoke_test.py --exe "$EXE" $EXTRA --data-dir "$RUNNER_TEMP/sc-data" --workdir "$RUNNER_TEMP/sc-work"
+          rm -rf backend/dist/subcraft/tools
       - name: 压缩
         working-directory: backend/dist
         run: |
           cp ../../LICENSE subcraft/
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            7z a -tzip "${{ matrix.asset }}" subcraft > /dev/null
+            7z a -tzip -mx=9 "${{ matrix.asset }}" subcraft > /dev/null
           else
-            tar czf "${{ matrix.asset }}" subcraft
+            XZ_OPT=-9e tar cJf "${{ matrix.asset }}" subcraft
           fi
           ls -la "${{ matrix.asset }}"
       - uses: actions/upload-artifact@v4

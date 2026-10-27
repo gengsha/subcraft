@@ -133,7 +133,10 @@ async def run(args: argparse.Namespace) -> None:
     if args.data_dir:
         env["SUBCRAFT_DATA_DIR"] = str(args.data_dir)
 
-    params = StdioServerParameters(command=sys.executable, args=[str(MCP_ENTRY)], env=env)
+    if args.exe:   # 测试打包好的纯命令行版：subcraft[.exe] mcp
+        params = StdioServerParameters(command=str(Path(args.exe).resolve()), args=["mcp"], env=env)
+    else:
+        params = StdioServerParameters(command=sys.executable, args=[str(MCP_ENTRY)], env=env)
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             init = await session.initialize()
@@ -254,6 +257,7 @@ def main() -> None:
     parser.add_argument("--target-lang", help="识别后追加翻译到该语言（需已配置翻译厂商）")
     parser.add_argument("--workdir", help="产物输出目录，默认系统临时目录")
     parser.add_argument("--data-dir", help="覆盖 SUBCRAFT_DATA_DIR（隔离真实配置）")
+    parser.add_argument("--exe", help="改测打包好的纯命令行版可执行文件（以 `subcraft mcp` 拉起）")
     args = parser.parse_args()
     asyncio.run(run(args))
 
