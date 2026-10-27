@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 backend/dist/
 backend/build/
+backend/build-cli/
 
 # Node
 app/node_modules/
