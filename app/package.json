@@ -1,6 +1,6 @@
 {
   "name": "subcraft-app",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "SubCraft - 视频语音识别的双语字幕生成软件",
   "main": "electron/main.cjs",
