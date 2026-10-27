@@ -40,6 +40,12 @@ def main() -> None:
     parser.add_argument("--list-tools", action="store_true", help="打印工具清单后退出（自检用）")
     args = parser.parse_args()
 
+    # Windows 非 UTF-8 控制台/管道（cp1252、GBK）下中文输出会 UnicodeEncodeError；
+    # 打包版 exe 不读 PYTHONUTF8，这里统一兜底（stdio 协议本身走 stdout.buffer，不受影响）
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     if args.list_tools:
         _print_tools()
         return
